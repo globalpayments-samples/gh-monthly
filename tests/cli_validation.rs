@@ -92,7 +92,13 @@ fn report_with_malformed_metadata_falls_back_to_unknown_month() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "report should succeed even with malformed metadata");
+    assert!(
+        output.status.success(),
+        "report should succeed even with malformed metadata"
+    );
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("unknown"), "should print 'unknown' month when metadata is malformed");
+    assert!(
+        stdout.contains("unknown"),
+        "should print 'unknown' month when metadata is malformed"
+    );
 }

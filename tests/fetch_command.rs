@@ -148,9 +148,7 @@ async fn fetch_command_jsonl_exists_even_when_later_fetch_fails() {
         .and(path("/search/issues"))
         .and(query_param("page", "1"))
         .and(query_param("per_page", "100"))
-        .respond_with(
-            rate_limit_headers().set_body_json(search_page(vec![issue_item(1)], 1)),
-        )
+        .respond_with(rate_limit_headers().set_body_json(search_page(vec![issue_item(1)], 1)))
         .up_to_n_times(1)
         .mount(&server)
         .await;

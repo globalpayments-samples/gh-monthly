@@ -105,7 +105,11 @@ pub fn write_csv(path: &Path, items: &[NormalizedItem]) -> Result<(), AppError> 
         let number = item.number.to_string();
         let id = item.id.to_string();
         let labels = item.labels.join(";");
-        let is_pr = if item.is_pull_request { "true" } else { "false" };
+        let is_pr = if item.is_pull_request {
+            "true"
+        } else {
+            "false"
+        };
         wtr.write_record([
             item_type.as_str(),
             item.org.as_str(),

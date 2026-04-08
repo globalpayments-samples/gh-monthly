@@ -56,12 +56,10 @@ async fn fetch_issues_two_pages() {
     Mock::given(method("GET"))
         .and(path("/search/issues"))
         .and(query_param("page", "1"))
-        .respond_with(
-            rate_headers(50).set_body_json(search_page(
-                vec![make_item(1, "issue"), make_item(2, "issue")],
-                3,
-            )),
-        )
+        .respond_with(rate_headers(50).set_body_json(search_page(
+            vec![make_item(1, "issue"), make_item(2, "issue")],
+            3,
+        )))
         .mount(&server)
         .await;
 
@@ -69,9 +67,7 @@ async fn fetch_issues_two_pages() {
     Mock::given(method("GET"))
         .and(path("/search/issues"))
         .and(query_param("page", "2"))
-        .respond_with(
-            rate_headers(49).set_body_json(search_page(vec![make_item(3, "issue")], 3)),
-        )
+        .respond_with(rate_headers(49).set_body_json(search_page(vec![make_item(3, "issue")], 3)))
         .mount(&server)
         .await;
 
@@ -95,12 +91,10 @@ async fn fetch_prs_single_page() {
     Mock::given(method("GET"))
         .and(path("/search/issues"))
         .and(query_param("page", "1"))
-        .respond_with(
-            rate_headers(50).set_body_json(search_page(
-                vec![make_item(10, "pr"), make_item(11, "pr")],
-                2,
-            )),
-        )
+        .respond_with(rate_headers(50).set_body_json(search_page(
+            vec![make_item(10, "pr"), make_item(11, "pr")],
+            2,
+        )))
         .mount(&server)
         .await;
 
@@ -132,9 +126,7 @@ async fn fetch_all_retries_transient_500() {
     Mock::given(method("GET"))
         .and(path("/search/issues"))
         .and(query_param("page", "1"))
-        .respond_with(
-            rate_headers(50).set_body_json(search_page(vec![make_item(1, "issue")], 1)),
-        )
+        .respond_with(rate_headers(50).set_body_json(search_page(vec![make_item(1, "issue")], 1)))
         .mount(&server)
         .await;
 

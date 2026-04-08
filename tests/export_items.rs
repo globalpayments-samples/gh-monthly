@@ -18,9 +18,7 @@ fn make_item(number: u64, item_type: ItemType) -> NormalizedItem {
         closed_at: None,
         merged_at: None,
         html_url: format!("https://github.com/rust-lang/rust/issues/{number}"),
-        api_url: format!(
-            "https://api.github.com/repos/rust-lang/rust/issues/{number}"
-        ),
+        api_url: format!("https://api.github.com/repos/rust-lang/rust/issues/{number}"),
         labels: vec!["bug".to_string()],
         is_pull_request: matches!(item_type, ItemType::PullRequest),
     }

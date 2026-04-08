@@ -18,9 +18,7 @@ fn make_item(number: u64, repo: &str, item_type: ItemType) -> NormalizedItem {
         closed_at: None,
         merged_at: None,
         html_url: format!("https://github.com/rust-lang/{repo}/issues/{number}"),
-        api_url: format!(
-            "https://api.github.com/repos/rust-lang/{repo}/issues/{number}"
-        ),
+        api_url: format!("https://api.github.com/repos/rust-lang/{repo}/issues/{number}"),
         labels: vec!["bug".to_string()],
         is_pull_request: matches!(item_type, ItemType::PullRequest),
     }
@@ -108,7 +106,11 @@ fn report_shows_target_month_from_metadata() {
         make_item(2, "rust", ItemType::PullRequest),
     ];
     write_fixture_jsonl(&file, &items);
-    fs::write(&meta, serde_json::to_string_pretty(&make_metadata("2026-03")).unwrap()).unwrap();
+    fs::write(
+        &meta,
+        serde_json::to_string_pretty(&make_metadata("2026-03")).unwrap(),
+    )
+    .unwrap();
 
     Command::cargo_bin("gh-monthly")
         .unwrap()

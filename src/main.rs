@@ -16,7 +16,10 @@ const DEFAULT_BASE_URL: &str = "https://api.github.com";
 /// Format a Unix timestamp (seconds) as a UTC RFC3339 string.
 fn unix_to_rfc3339(secs: u64) -> String {
     use chrono::{DateTime, TimeZone, Utc};
-    let dt: DateTime<Utc> = Utc.timestamp_opt(secs as i64, 0).single().unwrap_or_default();
+    let dt: DateTime<Utc> = Utc
+        .timestamp_opt(secs as i64, 0)
+        .single()
+        .unwrap_or_default();
     dt.format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
@@ -175,19 +178,16 @@ async fn run(cli: Cli) -> Result<(), AppError> {
             for org in &args.orgs {
                 for kind in [SearchKind::Issue, SearchKind::PullRequest] {
                     let query = kind.build_query(org, &start, &end);
-                    let items = client
-                        .fetch_all(&query, kind, 100)
-                        .await
-                        .inspect_err(|_| {
-                            let _ = write_metadata(
-                                &out_dir.join("metadata.json"),
-                                &build_incomplete_metadata(
-                                    &ctx,
-                                    Some(&preflight_meta),
-                                    all_items.len() as u64,
-                                ),
-                            );
-                        })?;
+                    let items = client.fetch_all(&query, kind, 100).await.inspect_err(|_| {
+                        let _ = write_metadata(
+                            &out_dir.join("metadata.json"),
+                            &build_incomplete_metadata(
+                                &ctx,
+                                Some(&preflight_meta),
+                                all_items.len() as u64,
+                            ),
+                        );
+                    })?;
                     // Each fetch_all call uses approximately one request per page; we track
                     // a coarse count here until per-request instrumentation is added.
                     total_requests += 1;
