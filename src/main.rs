@@ -1,5 +1,7 @@
+use clap::Parser;
+use gh_monthly::cli::Cli;
+
 #[tokio::main]
 async fn main() {
-    eprintln!("not implemented");
-    std::process::exit(1);
+    let _cli = Cli::parse();
 }
