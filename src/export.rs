@@ -8,21 +8,30 @@ use crate::error::AppError;
 use crate::model::NormalizedItem;
 
 /// Preflight information captured before a fetch run.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreflightMetadata {
     pub estimated_requests: u32,
     pub rate_limit_remaining: u32,
-    pub rate_limit_reset_at: u64,
+    /// Rate-limit reset time as a UTC RFC3339 string (e.g. "2026-04-08T10:30:00Z").
+    pub rate_limit_reset_at: String,
+    pub safety_margin_requests: u32,
 }
 
 /// Metadata written alongside a fetch run's exported data.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RunMetadata {
+    pub tool: String,
+    pub run_started_at: String,
+    pub run_completed_at: Option<String>,
     pub completed: bool,
-    pub month_id: String,
-    pub orgs: Vec<String>,
+    pub requested_orgs: Vec<String>,
+    pub target_month: String,
+    pub window_start: String,
+    pub window_end: String,
+    pub formats: Vec<String>,
+    pub total_records: u64,
+    pub request_count: u32,
     pub preflight: PreflightMetadata,
-    pub total_items: u64,
 }
 
 /// Write run metadata as pretty-printed JSON.
