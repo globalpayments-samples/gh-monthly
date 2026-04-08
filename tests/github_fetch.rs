@@ -10,7 +10,10 @@ fn make_item(number: u64, kind: &str) -> serde_json::Value {
         format!("https://github.com/rust-lang/rust/pull/{number}")
     };
     let pull_request = if kind == "pr" {
-        serde_json::json!({ "url": format!("https://api.github.com/repos/rust-lang/rust/pulls/{number}") })
+        serde_json::json!({
+            "url": format!("https://api.github.com/repos/rust-lang/rust/pulls/{number}"),
+            "merged_at": null
+        })
     } else {
         serde_json::Value::Null
     };
@@ -38,6 +41,13 @@ fn search_page(items: Vec<serde_json::Value>, total_count: u64) -> serde_json::V
     })
 }
 
+fn rate_headers(remaining: u32) -> ResponseTemplate {
+    ResponseTemplate::new(200)
+        .append_header("x-ratelimit-remaining", remaining.to_string().as_str())
+        .append_header("x-ratelimit-reset", "9999999999")
+        .append_header("x-ratelimit-limit", "30")
+}
+
 #[tokio::test]
 async fn fetch_issues_two_pages() {
     let server = MockServer::start().await;
@@ -47,14 +57,10 @@ async fn fetch_issues_two_pages() {
         .and(path("/search/issues"))
         .and(query_param("page", "1"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .append_header("x-ratelimit-remaining", "50")
-                .append_header("x-ratelimit-reset", "9999999999")
-                .append_header("x-ratelimit-limit", "30")
-                .set_body_json(search_page(
-                    vec![make_item(1, "issue"), make_item(2, "issue")],
-                    3,
-                )),
+            rate_headers(50).set_body_json(search_page(
+                vec![make_item(1, "issue"), make_item(2, "issue")],
+                3,
+            )),
         )
         .mount(&server)
         .await;
@@ -64,11 +70,7 @@ async fn fetch_issues_two_pages() {
         .and(path("/search/issues"))
         .and(query_param("page", "2"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .append_header("x-ratelimit-remaining", "49")
-                .append_header("x-ratelimit-reset", "9999999999")
-                .append_header("x-ratelimit-limit", "30")
-                .set_body_json(search_page(vec![make_item(3, "issue")], 3)),
+            rate_headers(49).set_body_json(search_page(vec![make_item(3, "issue")], 3)),
         )
         .mount(&server)
         .await;
@@ -94,14 +96,10 @@ async fn fetch_prs_single_page() {
         .and(path("/search/issues"))
         .and(query_param("page", "1"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .append_header("x-ratelimit-remaining", "50")
-                .append_header("x-ratelimit-reset", "9999999999")
-                .append_header("x-ratelimit-limit", "30")
-                .set_body_json(search_page(
-                    vec![make_item(10, "pr"), make_item(11, "pr")],
-                    2,
-                )),
+            rate_headers(50).set_body_json(search_page(
+                vec![make_item(10, "pr"), make_item(11, "pr")],
+                2,
+            )),
         )
         .mount(&server)
         .await;
@@ -115,4 +113,71 @@ async fn fetch_prs_single_page() {
 
     assert_eq!(items.len(), 2);
     assert!(items.iter().all(|i| i.item_type == ItemType::PullRequest));
+}
+
+#[tokio::test]
+async fn fetch_all_retries_transient_500() {
+    let server = MockServer::start().await;
+
+    // First request fails with 500
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .and(query_param("page", "1"))
+        .respond_with(ResponseTemplate::new(500))
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    // Second request succeeds
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .and(query_param("page", "1"))
+        .respond_with(
+            rate_headers(50).set_body_json(search_page(vec![make_item(1, "issue")], 1)),
+        )
+        .mount(&server)
+        .await;
+
+    let client = GitHubClient::new(server.uri());
+    let query = "org:rust-lang is:issue created:2026-03-01T00:00:00Z..2026-04-01T00:00:00Z";
+    let items = client
+        .fetch_all(query, SearchKind::Issue, 100)
+        .await
+        .expect("fetch should succeed after retry");
+
+    assert_eq!(items.len(), 1);
+}
+
+#[tokio::test]
+async fn fetch_all_fails_after_retry_exhaustion() {
+    let server = MockServer::start().await;
+
+    // All requests fail with 500
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&server)
+        .await;
+
+    let client = GitHubClient::new(server.uri());
+    let query = "org:rust-lang is:issue created:2026-03-01T00:00:00Z..2026-04-01T00:00:00Z";
+    let result = client.fetch_all(query, SearchKind::Issue, 100).await;
+    assert!(result.is_err(), "fetch should fail after retries exhausted");
+}
+
+#[tokio::test]
+async fn fetch_all_fails_fast_on_4xx() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .respond_with(ResponseTemplate::new(422))
+        .expect(1) // must not retry
+        .mount(&server)
+        .await;
+
+    let client = GitHubClient::new(server.uri());
+    let query = "org:rust-lang is:issue created:2026-03-01T00:00:00Z..2026-04-01T00:00:00Z";
+    let result = client.fetch_all(query, SearchKind::Issue, 100).await;
+    assert!(result.is_err(), "fetch should fail fast on 4xx");
 }

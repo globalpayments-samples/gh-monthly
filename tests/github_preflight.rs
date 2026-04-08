@@ -74,3 +74,19 @@ async fn preflight_estimates_request_count() {
     assert_eq!(estimate.orgs, vec!["rust-lang"]);
     assert_eq!(estimate.month_id, "2026-03");
 }
+
+#[tokio::test]
+async fn probe_rejects_non_success_status() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .respond_with(ResponseTemplate::new(403))
+        .mount(&server)
+        .await;
+
+    let client = GitHubClient::new(server.uri());
+    let query = "org:rust-lang is:issue created:2026-03-01T00:00:00Z..2026-04-01T00:00:00Z";
+    let result = client.probe(query, SearchKind::Issue).await;
+    assert!(result.is_err(), "probe should fail on 403");
+}
