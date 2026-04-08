@@ -1,4 +1,4 @@
-use reqwest::{Client, RequestBuilder, Response, StatusCode};
+use reqwest::{Client, RequestBuilder, Response};
 use serde::Deserialize;
 
 use crate::error::AppError;

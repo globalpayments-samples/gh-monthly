@@ -129,3 +129,62 @@ async fn fetch_command_writes_metadata_on_failure() {
     assert_eq!(value["target_month"], "2026-03");
     assert!(value["run_started_at"].is_string());
 }
+
+#[tokio::test]
+async fn fetch_command_jsonl_exists_even_when_later_fetch_fails() {
+    let server = MockServer::start().await;
+
+    // Probe: succeed for both issue and PR probes
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .and(query_param("per_page", "1"))
+        .respond_with(rate_limit_headers().set_body_json(search_page(vec![], 1)))
+        .expect(2)
+        .mount(&server)
+        .await;
+
+    // Issue page 1: succeed with one item
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .and(query_param("page", "1"))
+        .and(query_param("per_page", "100"))
+        .respond_with(
+            rate_limit_headers().set_body_json(search_page(vec![issue_item(1)], 1)),
+        )
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    // PR page: always fail (simulates partial failure after some pages were written)
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .and(query_param("page", "1"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&server)
+        .await;
+
+    let dir = tempdir().unwrap();
+    let out = dir.path().to_str().unwrap();
+
+    // Command should fail due to PR fetch error
+    Command::cargo_bin("gh-monthly")
+        .unwrap()
+        .args([
+            "fetch",
+            "--org",
+            "rust-lang",
+            "--month",
+            "2026-03",
+            "--out",
+            out,
+            "--base-url",
+            &server.uri(),
+        ])
+        .assert()
+        .failure();
+
+    // metadata.json should indicate incomplete run
+    let content = std::fs::read_to_string(dir.path().join("metadata.json")).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(value["completed"], false);
+}
