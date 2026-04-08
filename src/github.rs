@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::{Client, RequestBuilder, Response, StatusCode};
 use serde::Deserialize;
 
 use crate::error::AppError;
@@ -85,6 +85,9 @@ struct SearchPage {
     items: Vec<RawSearchItem>,
 }
 
+/// Maximum number of retries for transient server errors.
+const MAX_RETRIES: u32 = 3;
+
 /// GitHub Search API HTTP client.
 pub struct GitHubClient {
     base_url: String,
@@ -106,6 +109,64 @@ impl GitHubClient {
         }
     }
 
+    /// Send a request with automatic retry on transient 5xx errors.
+    ///
+    /// - Retries up to `MAX_RETRIES` times on 5xx responses.
+    /// - Fails fast on non-retryable 4xx responses.
+    /// - Returns an error if retries are exhausted.
+    async fn send_with_retries(&self, builder: RequestBuilder) -> Result<Response, AppError> {
+        // We need to clone the builder each time because `send()` consumes it.
+        // reqwest's `RequestBuilder` supports `try_clone` for this purpose.
+        let mut last_err: Option<AppError> = None;
+
+        for attempt in 0..=MAX_RETRIES {
+            let req = builder
+                .try_clone()
+                .ok_or_else(|| AppError::Fetch("cannot clone request builder".to_string()))?;
+
+            let resp = req
+                .send()
+                .await
+                .map_err(|e| AppError::Fetch(e.to_string()))?;
+
+            let status = resp.status();
+
+            if status.is_success() {
+                return Ok(resp);
+            }
+
+            // Fail fast on client errors (4xx)
+            if status.is_client_error() {
+                return Err(AppError::Fetch(format!(
+                    "HTTP {} from GitHub API",
+                    status.as_u16()
+                )));
+            }
+
+            // Server errors (5xx) are retryable
+            if status.is_server_error() {
+                last_err = Some(AppError::Fetch(format!(
+                    "HTTP {} from GitHub API (attempt {}/{})",
+                    status.as_u16(),
+                    attempt + 1,
+                    MAX_RETRIES + 1
+                )));
+                if attempt < MAX_RETRIES {
+                    continue;
+                }
+                break;
+            }
+
+            // Unexpected status (e.g. 3xx without redirect)
+            return Err(AppError::Fetch(format!(
+                "unexpected HTTP {} from GitHub API",
+                status.as_u16()
+            )));
+        }
+
+        Err(last_err.unwrap_or_else(|| AppError::Fetch("request failed".to_string())))
+    }
+
     /// Send a probe request (`per_page=1`) and return `(total_count, rate_limit)`.
     pub async fn probe(
         &self,
@@ -113,14 +174,12 @@ impl GitHubClient {
         _kind: SearchKind,
     ) -> Result<(u64, RateLimitSnapshot), AppError> {
         let url = format!("{}/search/issues", self.base_url);
-        let resp = self
+        let builder = self
             .client
             .get(&url)
-            .query(&[("q", query), ("per_page", "1")])
-            .send()
-            .await
-            .map_err(|e| AppError::Fetch(e.to_string()))?;
+            .query(&[("q", query), ("per_page", "1")]);
 
+        let resp = self.send_with_retries(builder).await?;
         let rate_limit = parse_rate_limit_headers(&resp)?;
 
         let envelope: SearchEnvelope = resp
@@ -177,6 +236,7 @@ impl GitHubClient {
     /// Fetch all pages for a search query, returning normalized items in order.
     ///
     /// `per_page` is configurable so tests can use small pages.
+    /// Transient 5xx errors are retried up to `MAX_RETRIES` times per page.
     pub async fn fetch_all(
         &self,
         query: &str,
@@ -188,17 +248,13 @@ impl GitHubClient {
         let mut page: u32 = 1;
 
         loop {
-            let resp = self
-                .client
-                .get(&url)
-                .query(&[
-                    ("q", query.to_string()),
-                    ("per_page", per_page.to_string()),
-                    ("page", page.to_string()),
-                ])
-                .send()
-                .await
-                .map_err(|e| AppError::Fetch(e.to_string()))?;
+            let builder = self.client.get(&url).query(&[
+                ("q", query.to_string()),
+                ("per_page", per_page.to_string()),
+                ("page", page.to_string()),
+            ]);
+
+            let resp = self.send_with_retries(builder).await?;
 
             let search_page: SearchPage = resp
                 .json()
@@ -211,7 +267,6 @@ impl GitHubClient {
                 all_items.push(item);
             }
 
-            // Stop when we have all items or the page was empty
             let total = search_page.total_count as usize;
             if all_items.len() >= total || fetched == 0 {
                 break;
@@ -224,7 +279,7 @@ impl GitHubClient {
 }
 
 /// Parse GitHub rate-limit headers from a response.
-pub fn parse_rate_limit_headers(resp: &reqwest::Response) -> Result<RateLimitSnapshot, AppError> {
+pub fn parse_rate_limit_headers(resp: &Response) -> Result<RateLimitSnapshot, AppError> {
     let headers = resp.headers();
     let remaining = header_u32(headers, "x-ratelimit-remaining")?;
     let reset_at = header_u64(headers, "x-ratelimit-reset")?;
