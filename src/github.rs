@@ -211,5 +211,35 @@ fn header_u64(
         .map_err(|_| AppError::Fetch(format!("non-ascii header: {name}")))?
         .parse()
         .map_err(|_| AppError::Fetch(format!("non-numeric header: {name}")))
+}
 
+/// Refuse a fetch run when the rate-limit budget is insufficient.
+///
+/// The check is: `estimated_requests + safety_margin <= remaining`.
+pub fn ensure_preflight_budget(
+    estimate: &PreflightEstimate,
+    safety_margin: u32,
+) -> Result<(), AppError> {
+    let required = estimate.estimated_requests + safety_margin;
+    let available = estimate.rate_limit.remaining;
+
+    if required <= available {
+        return Ok(());
+    }
+
+    let orgs = estimate.orgs.join(", ");
+    let drivers = if estimate.high_volume_drivers.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " High-volume queries: {}.",
+            estimate.high_volume_drivers.join(", ")
+        )
+    };
+
+    Err(AppError::Preflight(format!(
+        "month={} orgs=[{orgs}] requires {required} requests \
+         but only {available} remain in the current rate-limit window.{drivers}",
+        estimate.month_id,
+    )))
 }
