@@ -7,7 +7,7 @@ use gh_monthly::error::AppError;
 use gh_monthly::export::{write_csv, write_jsonl, write_metadata, PreflightMetadata, RunMetadata};
 use gh_monthly::github::{ensure_preflight_budget, GitHubClient, SearchKind};
 use gh_monthly::model::NormalizedItem;
-use gh_monthly::report::{aggregate, read_jsonl, render_json, render_table};
+use gh_monthly::report::{read_and_aggregate, render_json, render_table};
 use gh_monthly::time_window::{resolve_explicit_month, resolve_previous_month};
 
 const SAFETY_MARGIN: u32 = 5;
@@ -231,8 +231,7 @@ async fn run(cli: Cli) -> Result<(), AppError> {
         }
 
         Commands::Report(args) => {
-            let items = read_jsonl(&args.input)?;
-            let summary = aggregate(&items);
+            let summary = read_and_aggregate(&args.input)?;
             match args.format {
                 ReportFormat::Json => {
                     println!("{}", render_json(summary)?);
