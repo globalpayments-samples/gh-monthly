@@ -62,6 +62,39 @@ fn total_count_is_correct() {
 }
 
 #[test]
+fn issue_and_pr_counts_are_correct() {
+    let items = vec![
+        item(
+            "rust-lang",
+            "rust",
+            "alice",
+            vec![],
+            "2026-03-01T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "bob",
+            vec![],
+            "2026-03-02T00:00:00Z",
+            ItemType::PullRequest,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "carol",
+            vec![],
+            "2026-03-03T00:00:00Z",
+            ItemType::Issue,
+        ),
+    ];
+    let summary = aggregate(&items);
+    assert_eq!(summary.issue_count, 2);
+    assert_eq!(summary.pull_request_count, 1);
+}
+
+#[test]
 fn per_org_counts_are_correct() {
     let items = vec![
         item(
@@ -199,7 +232,7 @@ fn top_label_is_most_frequent() {
 }
 
 #[test]
-fn busiest_day_is_the_day_with_most_items() {
+fn busiest_days_are_sorted_descending() {
     let items = vec![
         item(
             "rust-lang",
@@ -227,7 +260,8 @@ fn busiest_day_is_the_day_with_most_items() {
         ),
     ];
     let summary = aggregate(&items);
-    let (day, count) = summary.busiest_day.unwrap();
+    assert!(!summary.busiest_days.is_empty());
+    let (day, count) = &summary.busiest_days[0];
     assert_eq!(day, "2026-03-05");
-    assert_eq!(count, 2);
+    assert_eq!(*count, 2);
 }
