@@ -2,8 +2,38 @@ use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::AppError;
 use crate::model::NormalizedItem;
+
+/// Preflight information captured before a fetch run.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PreflightMetadata {
+    pub estimated_requests: u32,
+    pub rate_limit_remaining: u32,
+    pub rate_limit_reset_at: u64,
+}
+
+/// Metadata written alongside a fetch run's exported data.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RunMetadata {
+    pub completed: bool,
+    pub month_id: String,
+    pub orgs: Vec<String>,
+    pub preflight: PreflightMetadata,
+    pub total_items: u64,
+}
+
+/// Write run metadata as pretty-printed JSON.
+pub fn write_metadata(path: &Path, metadata: &RunMetadata) -> Result<(), AppError> {
+    ensure_parent(path)?;
+    let json = serde_json::to_string_pretty(metadata)
+        .map_err(|e| AppError::Write(format!("metadata serialization failed: {e}")))?;
+    fs::write(path, json)
+        .map_err(|e| AppError::Write(format!("metadata write failed: {e}")))?;
+    Ok(())
+}
 
 /// Ensure the parent directory of `path` exists, creating it if necessary.
 fn ensure_parent(path: &Path) -> Result<(), AppError> {
