@@ -2,6 +2,7 @@ use reqwest::Client;
 use serde::Deserialize;
 
 use crate::error::AppError;
+use crate::model::{NormalizedItem, RawSearchItem};
 
 /// The kind of GitHub search query to build.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,6 +81,12 @@ pub struct PreflightEstimate {
 #[derive(Debug, Deserialize)]
 struct SearchEnvelope {
     total_count: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchPage {
+    total_count: u64,
+    items: Vec<RawSearchItem>,
 }
 
 /// GitHub Search API HTTP client.
@@ -169,6 +176,54 @@ impl GitHubClient {
             rate_limit: last_rate_limit
                 .ok_or_else(|| AppError::Fetch("no orgs provided".to_string()))?,
         })
+    }
+
+    /// Fetch all pages for a search query, returning normalized items in order.
+    ///
+    /// `per_page` is configurable so tests can use small pages.
+    pub async fn fetch_all(
+        &self,
+        query: &str,
+        _kind: SearchKind,
+        per_page: u32,
+    ) -> Result<Vec<NormalizedItem>, AppError> {
+        let url = format!("{}/search/issues", self.base_url);
+        let mut all_items: Vec<NormalizedItem> = Vec::new();
+        let mut page: u32 = 1;
+
+        loop {
+            let resp = self
+                .client
+                .get(&url)
+                .query(&[
+                    ("q", query.to_string()),
+                    ("per_page", per_page.to_string()),
+                    ("page", page.to_string()),
+                ])
+                .send()
+                .await
+                .map_err(|e| AppError::Fetch(e.to_string()))?;
+
+            let search_page: SearchPage = resp
+                .json()
+                .await
+                .map_err(|e| AppError::Fetch(e.to_string()))?;
+
+            let fetched = search_page.items.len();
+            for raw in search_page.items {
+                let item = NormalizedItem::try_from(raw)?;
+                all_items.push(item);
+            }
+
+            // Stop when we have all items or the page was empty
+            let total = search_page.total_count as usize;
+            if all_items.len() >= total || fetched == 0 {
+                break;
+            }
+            page += 1;
+        }
+
+        Ok(all_items)
     }
 }
 
