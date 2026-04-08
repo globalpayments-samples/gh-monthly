@@ -122,4 +122,10 @@ async fn fetch_command_writes_metadata_on_failure() {
         dir.path().join("metadata.json").exists(),
         "metadata.json should be written even on failure"
     );
+
+    let content = std::fs::read_to_string(dir.path().join("metadata.json")).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(value["completed"], false);
+    assert_eq!(value["target_month"], "2026-03");
+    assert!(value["run_started_at"].is_string());
 }
