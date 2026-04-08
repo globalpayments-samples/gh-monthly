@@ -15,13 +15,15 @@ fn make_item(number: u64, kind: &str) -> serde_json::Value {
         serde_json::Value::Null
     };
     serde_json::json!({
+        "id": 100000_u64 + number,
+        "node_id": format!("NODE{number}"),
         "number": number,
         "title": format!("Item {number}"),
         "state": "open",
         "created_at": "2026-03-05T10:00:00Z",
-        "updated_at": "2026-03-05T10:00:00Z",
         "closed_at": null,
         "html_url": html_url,
+        "url": format!("https://api.github.com/repos/rust-lang/rust/issues/{number}"),
         "user": { "login": "alice" },
         "labels": [],
         "pull_request": pull_request

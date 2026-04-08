@@ -10,18 +10,22 @@ fn item(
     item_type: ItemType,
 ) -> NormalizedItem {
     NormalizedItem {
-        item_type,
+        item_type: item_type.clone(),
         org: org.to_string(),
         repo: repo.to_string(),
         number: 1,
+        id: 1,
+        node_id: "NODE1".to_string(),
         title: "test".to_string(),
+        author_login: Some(author.to_string()),
         state: "open".to_string(),
-        author: author.to_string(),
         created_at: created_at.to_string(),
-        updated_at: created_at.to_string(),
         closed_at: None,
+        merged_at: None,
         html_url: format!("https://github.com/{org}/{repo}/issues/1"),
+        api_url: format!("https://api.github.com/repos/{org}/{repo}/issues/1"),
         labels: labels.into_iter().map(String::from).collect(),
+        is_pull_request: matches!(item_type, ItemType::PullRequest),
     }
 }
 

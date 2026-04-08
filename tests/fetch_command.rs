@@ -5,13 +5,15 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn issue_item(number: u64) -> serde_json::Value {
     serde_json::json!({
+        "id": 100000_u64 + number,
+        "node_id": format!("NODE{number}"),
         "number": number,
         "title": format!("Issue {number}"),
         "state": "open",
         "created_at": "2026-03-05T10:00:00Z",
-        "updated_at": "2026-03-05T10:00:00Z",
         "closed_at": null,
         "html_url": format!("https://github.com/rust-lang/rust/issues/{number}"),
+        "url": format!("https://api.github.com/repos/rust-lang/rust/issues/{number}"),
         "user": { "login": "alice" },
         "labels": [],
         "pull_request": null
