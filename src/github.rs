@@ -17,7 +17,14 @@ impl SearchKind {
             SearchKind::Issue => "is:issue",
             SearchKind::PullRequest => "is:pr",
         };
-        format!("org:{org} {kind_filter} created:{start}..{end}")
+        let excluded_authors = EXCLUDED_AUTHOR_LOGINS
+            .iter()
+            .map(|login| format!("-author:{login}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!(
+            "org:{org} {kind_filter} created:{start}..{end} {excluded_authors}"
+        )
     }
 }
 
@@ -96,6 +103,7 @@ pub struct GitHubClient {
 
 const PER_PAGE: u64 = 100;
 const USER_AGENT: &str = concat!("gh-monthly/", env!("CARGO_PKG_VERSION"));
+const EXCLUDED_AUTHOR_LOGINS: &[&str] = &["macroscope-cloud", "dependabot"];
 
 impl GitHubClient {
     pub fn new(base_url: impl Into<String>) -> Self {

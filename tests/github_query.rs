@@ -9,6 +9,14 @@ fn issue_query_contains_required_components() {
         query.contains("created:2026-03-01T00:00:00Z..2026-04-01T00:00:00Z"),
         "missing created range"
     );
+    assert!(
+        query.contains("-author:macroscope-cloud"),
+        "missing macroscope-cloud exclusion"
+    );
+    assert!(
+        query.contains("-author:dependabot"),
+        "missing dependabot exclusion"
+    );
 }
 
 #[test]
@@ -19,6 +27,14 @@ fn pr_query_contains_required_components() {
     assert!(
         query.contains("created:2026-03-01T00:00:00Z..2026-04-01T00:00:00Z"),
         "missing created range"
+    );
+    assert!(
+        query.contains("-author:macroscope-cloud"),
+        "missing macroscope-cloud exclusion"
+    );
+    assert!(
+        query.contains("-author:dependabot"),
+        "missing dependabot exclusion"
     );
 }
 
