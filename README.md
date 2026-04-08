@@ -10,9 +10,11 @@ A Rust CLI that fetches public GitHub issues and pull requests created in the pr
 
 **Included:**
 - Fetch public issues and PRs for one or more GitHub orgs via the Search API
-- Export to JSONL (canonical) or CSV
-- Summarize exported data locally: totals, top repos, top authors, top labels, busiest day
+- Export to JSONL (canonical) or CSV with a stable, versioned schema
+- Summarize exported data locally: totals by type, top repos, top authors, top labels, busiest days
 - Preflight budget check to refuse runs that would exceed rate limits
+- Automatic retry on transient 5xx server errors (fail-fast on 4xx)
+- Incomplete-run detection via `metadata.json`
 
 **Not included in v1:**
 - Private repository access (no auth token support)
@@ -27,7 +29,7 @@ A Rust CLI that fetches public GitHub issues and pull requests created in the pr
 gh-monthly window --month 2026-03
 # month:  2026-03
 # start:  2026-03-01T00:00:00Z
-# end:    2026-03-31T23:59:59Z
+# end:    2026-04-01T00:00:00Z
 
 # Default: previous calendar month
 gh-monthly window
@@ -50,11 +52,11 @@ Output files written to `--out` (default `./data/YYYY-MM/`):
 
 | File | Description |
 |------|-------------|
-| `items.jsonl` | One normalized item per line (canonical) |
+| `items.jsonl` | One normalized item per line (canonical export) |
 | `items.csv` | Tabular export (with `--format csv` or `--format both`) |
-| `metadata.json` | Run metadata including preflight and completion status |
+| `metadata.json` | Run metadata including preflight info and completion status |
 
-> **Note:** V1 is unauthenticated. The GitHub Search API allows ~30 requests per minute for unauthenticated clients. Large organizations may trigger the preflight budget check and refuse to run.
+> **Rate limits:** V1 is unauthenticated. The GitHub Search API allows ~30 requests per minute for unauthenticated clients. The preflight check refuses runs that would exhaust the current window. Transient 5xx errors are retried automatically; 4xx errors fail immediately.
 
 ### Report from local data
 
@@ -66,10 +68,15 @@ gh-monthly report --input ./data/2026-03/items.jsonl
 gh-monthly report --input ./data/2026-03/items.jsonl --format json
 ```
 
+`report` reads only local files — it never calls GitHub. The `target_month` field is derived from a sibling `metadata.json` when present; otherwise it shows `"unknown"`.
+
 Example table output:
 
 ```
+Month: 2026-03
 Total items: 142
+Issues: 80
+Pull requests: 62
 
 By org:
   rust-lang: 98
@@ -77,14 +84,74 @@ By org:
 
 Top repos:
   rust-lang/rust: 61
-  tokio-rs/tokio: 32
   rust-lang/cargo: 37
+  tokio-rs/tokio: 32
 
 Top authors:
   alice: 12
   bob: 9
-  ...
+
+Top labels:
+  bug: 28
+  enhancement: 15
+
+Busiest days:
+  2026-03-15: 14
+  2026-03-22: 11
 ```
+
+## Canonical JSONL / CSV Schema
+
+Each exported item has the following fields (stable in v1):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `item_type` | `"issue"` \| `"pull_request"` | Type of item |
+| `org` | string | GitHub organization |
+| `repo` | string | Repository name |
+| `number` | integer | Issue or PR number |
+| `id` | integer | GitHub item ID |
+| `node_id` | string | GitHub node ID |
+| `title` | string | Issue or PR title |
+| `author_login` | string \| null | Author login; `null` for deleted accounts |
+| `state` | string | `"open"` or `"closed"` |
+| `created_at` | ISO8601 string | Creation timestamp |
+| `closed_at` | ISO8601 string \| null | Close timestamp |
+| `merged_at` | ISO8601 string \| null | Merge timestamp (PRs only; may be `null` if not available from Search API) |
+| `html_url` | string | GitHub web URL |
+| `api_url` | string | GitHub REST API URL |
+| `labels` | string (`;`-separated in CSV) | Label names |
+| `is_pull_request` | boolean | `true` for PRs |
+
+CSV column order matches the table above exactly.
+
+## Metadata Trust Fields
+
+`metadata.json` is written at the start of a run (incomplete) and updated at the end (complete). Check `completed` before trusting the dataset:
+
+```json
+{
+  "tool": "gh-monthly",
+  "run_started_at": "2026-04-08T10:00:00Z",
+  "run_completed_at": "2026-04-08T10:05:00Z",
+  "completed": true,
+  "requested_orgs": ["rust-lang"],
+  "target_month": "2026-03",
+  "window_start": "2026-03-01T00:00:00Z",
+  "window_end": "2026-04-01T00:00:00Z",
+  "formats": ["jsonl"],
+  "total_records": 142,
+  "request_count": 3,
+  "preflight": {
+    "estimated_requests": 4,
+    "rate_limit_remaining": 28,
+    "rate_limit_reset_at": "2026-04-08T10:30:00Z",
+    "safety_margin_requests": 5
+  }
+}
+```
+
+If `completed` is `false`, the run was interrupted. The JSONL file may contain partial data.
 
 ## Building
 
