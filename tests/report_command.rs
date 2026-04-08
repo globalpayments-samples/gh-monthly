@@ -9,14 +9,20 @@ fn make_item(number: u64, repo: &str) -> NormalizedItem {
         org: "rust-lang".to_string(),
         repo: repo.to_string(),
         number,
+        id: 100000 + number,
+        node_id: format!("NODE{number}"),
         title: format!("Issue {number}"),
+        author_login: Some("alice".to_string()),
         state: "open".to_string(),
-        author: "alice".to_string(),
         created_at: "2026-03-05T10:00:00Z".to_string(),
-        updated_at: "2026-03-05T10:00:00Z".to_string(),
         closed_at: None,
+        merged_at: None,
         html_url: format!("https://github.com/rust-lang/{repo}/issues/{number}"),
+        api_url: format!(
+            "https://api.github.com/repos/rust-lang/{repo}/issues/{number}"
+        ),
         labels: vec!["bug".to_string()],
+        is_pull_request: false,
     }
 }
 
