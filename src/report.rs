@@ -36,7 +36,9 @@ pub fn aggregate(items: &[NormalizedItem]) -> ReportSummary {
         *by_repo
             .entry(format!("{}/{}", item.org, item.repo))
             .or_insert(0) += 1;
-        *by_author.entry(item.author.clone()).or_insert(0) += 1;
+        if let Some(login) = &item.author_login {
+            *by_author.entry(login.clone()).or_insert(0) += 1;
+        }
 
         for label in &item.labels {
             *by_label.entry(label.clone()).or_insert(0) += 1;

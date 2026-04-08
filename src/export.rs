@@ -62,27 +62,30 @@ pub fn write_jsonl(path: &Path, items: &[NormalizedItem]) -> Result<(), AppError
     Ok(())
 }
 
-/// Write normalized items to a CSV file with a stable header ordering.
+/// Write normalized items to a CSV file with the canonical stable header ordering.
 pub fn write_csv(path: &Path, items: &[NormalizedItem]) -> Result<(), AppError> {
     ensure_parent(path)?;
     let file =
         File::create(path).map_err(|e| AppError::Write(format!("cannot create file: {e}")))?;
     let mut wtr = csv::Writer::from_writer(file);
 
-    // Write header with stable ordering
     wtr.write_record([
         "item_type",
         "org",
         "repo",
         "number",
+        "id",
+        "node_id",
         "title",
+        "author_login",
         "state",
-        "author",
         "created_at",
-        "updated_at",
         "closed_at",
+        "merged_at",
         "html_url",
+        "api_url",
         "labels",
+        "is_pull_request",
     ])
     .map_err(|e| AppError::Write(format!("csv header write failed: {e}")))?;
 
@@ -95,14 +98,18 @@ pub fn write_csv(path: &Path, items: &[NormalizedItem]) -> Result<(), AppError> 
             &item.org,
             &item.repo,
             &item.number.to_string(),
+            &item.id.to_string(),
+            &item.node_id,
             &item.title,
+            item.author_login.as_deref().unwrap_or(""),
             &item.state,
-            &item.author,
             &item.created_at,
-            &item.updated_at,
             item.closed_at.as_deref().unwrap_or(""),
+            item.merged_at.as_deref().unwrap_or(""),
             &item.html_url,
+            &item.api_url,
             &item.labels.join(";"),
+            &(if item.is_pull_request { "true" } else { "false" }).to_string(),
         ])
         .map_err(|e| AppError::Write(format!("csv record write failed: {e}")))?;
     }
