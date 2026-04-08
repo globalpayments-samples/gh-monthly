@@ -19,8 +19,14 @@ fn resolves_previous_month_january_to_december() {
 fn resolves_explicit_month_march_2026() {
     let window = resolve_explicit_month("2026-03").unwrap();
     assert_eq!(window.month_id, "2026-03");
-    assert_eq!(window.start, Utc.with_ymd_and_hms(2026, 3, 1, 0, 0, 0).unwrap());
-    assert_eq!(window.end, Utc.with_ymd_and_hms(2026, 3, 31, 23, 59, 59).unwrap());
+    assert_eq!(
+        window.start,
+        Utc.with_ymd_and_hms(2026, 3, 1, 0, 0, 0).unwrap()
+    );
+    assert_eq!(
+        window.end,
+        Utc.with_ymd_and_hms(2026, 3, 31, 23, 59, 59).unwrap()
+    );
 }
 
 #[test]

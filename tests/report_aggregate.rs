@@ -28,9 +28,30 @@ fn item(
 #[test]
 fn total_count_is_correct() {
     let items = vec![
-        item("rust-lang", "rust", "alice", vec![], "2026-03-01T00:00:00Z", ItemType::Issue),
-        item("rust-lang", "rust", "bob", vec![], "2026-03-02T00:00:00Z", ItemType::PullRequest),
-        item("tokio-rs", "tokio", "alice", vec![], "2026-03-03T00:00:00Z", ItemType::Issue),
+        item(
+            "rust-lang",
+            "rust",
+            "alice",
+            vec![],
+            "2026-03-01T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "bob",
+            vec![],
+            "2026-03-02T00:00:00Z",
+            ItemType::PullRequest,
+        ),
+        item(
+            "tokio-rs",
+            "tokio",
+            "alice",
+            vec![],
+            "2026-03-03T00:00:00Z",
+            ItemType::Issue,
+        ),
     ];
     let summary = aggregate(&items);
     assert_eq!(summary.total_items, 3);
@@ -39,9 +60,30 @@ fn total_count_is_correct() {
 #[test]
 fn per_org_counts_are_correct() {
     let items = vec![
-        item("rust-lang", "rust", "alice", vec![], "2026-03-01T00:00:00Z", ItemType::Issue),
-        item("rust-lang", "cargo", "bob", vec![], "2026-03-02T00:00:00Z", ItemType::Issue),
-        item("tokio-rs", "tokio", "alice", vec![], "2026-03-03T00:00:00Z", ItemType::Issue),
+        item(
+            "rust-lang",
+            "rust",
+            "alice",
+            vec![],
+            "2026-03-01T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "cargo",
+            "bob",
+            vec![],
+            "2026-03-02T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "tokio-rs",
+            "tokio",
+            "alice",
+            vec![],
+            "2026-03-03T00:00:00Z",
+            ItemType::Issue,
+        ),
     ];
     let summary = aggregate(&items);
     let rust_count = summary
@@ -56,9 +98,30 @@ fn per_org_counts_are_correct() {
 #[test]
 fn top_repo_is_most_frequent() {
     let items = vec![
-        item("rust-lang", "rust", "alice", vec![], "2026-03-01T00:00:00Z", ItemType::Issue),
-        item("rust-lang", "rust", "bob", vec![], "2026-03-02T00:00:00Z", ItemType::Issue),
-        item("rust-lang", "cargo", "alice", vec![], "2026-03-03T00:00:00Z", ItemType::Issue),
+        item(
+            "rust-lang",
+            "rust",
+            "alice",
+            vec![],
+            "2026-03-01T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "bob",
+            vec![],
+            "2026-03-02T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "cargo",
+            "alice",
+            vec![],
+            "2026-03-03T00:00:00Z",
+            ItemType::Issue,
+        ),
     ];
     let summary = aggregate(&items);
     assert_eq!(summary.top_repos[0].0, "rust-lang/rust");
@@ -68,9 +131,30 @@ fn top_repo_is_most_frequent() {
 #[test]
 fn top_author_is_most_frequent() {
     let items = vec![
-        item("rust-lang", "rust", "alice", vec![], "2026-03-01T00:00:00Z", ItemType::Issue),
-        item("rust-lang", "rust", "alice", vec![], "2026-03-02T00:00:00Z", ItemType::Issue),
-        item("rust-lang", "rust", "bob", vec![], "2026-03-03T00:00:00Z", ItemType::Issue),
+        item(
+            "rust-lang",
+            "rust",
+            "alice",
+            vec![],
+            "2026-03-01T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "alice",
+            vec![],
+            "2026-03-02T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "bob",
+            vec![],
+            "2026-03-03T00:00:00Z",
+            ItemType::Issue,
+        ),
     ];
     let summary = aggregate(&items);
     assert_eq!(summary.top_authors[0].0, "alice");
@@ -80,9 +164,30 @@ fn top_author_is_most_frequent() {
 #[test]
 fn top_label_is_most_frequent() {
     let items = vec![
-        item("rust-lang", "rust", "alice", vec!["bug", "perf"], "2026-03-01T00:00:00Z", ItemType::Issue),
-        item("rust-lang", "rust", "bob", vec!["bug"], "2026-03-02T00:00:00Z", ItemType::Issue),
-        item("rust-lang", "rust", "carol", vec!["enhancement"], "2026-03-03T00:00:00Z", ItemType::Issue),
+        item(
+            "rust-lang",
+            "rust",
+            "alice",
+            vec!["bug", "perf"],
+            "2026-03-01T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "bob",
+            vec!["bug"],
+            "2026-03-02T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "carol",
+            vec!["enhancement"],
+            "2026-03-03T00:00:00Z",
+            ItemType::Issue,
+        ),
     ];
     let summary = aggregate(&items);
     assert_eq!(summary.top_labels[0].0, "bug");
@@ -92,9 +197,30 @@ fn top_label_is_most_frequent() {
 #[test]
 fn busiest_day_is_the_day_with_most_items() {
     let items = vec![
-        item("rust-lang", "rust", "alice", vec![], "2026-03-05T00:00:00Z", ItemType::Issue),
-        item("rust-lang", "rust", "bob", vec![], "2026-03-05T12:00:00Z", ItemType::Issue),
-        item("rust-lang", "rust", "carol", vec![], "2026-03-10T00:00:00Z", ItemType::Issue),
+        item(
+            "rust-lang",
+            "rust",
+            "alice",
+            vec![],
+            "2026-03-05T00:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "bob",
+            vec![],
+            "2026-03-05T12:00:00Z",
+            ItemType::Issue,
+        ),
+        item(
+            "rust-lang",
+            "rust",
+            "carol",
+            vec![],
+            "2026-03-10T00:00:00Z",
+            ItemType::Issue,
+        ),
     ];
     let summary = aggregate(&items);
     let (day, count) = summary.busiest_day.unwrap();

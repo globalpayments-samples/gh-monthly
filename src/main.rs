@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use gh_monthly::cli::ReportFormat;
 use gh_monthly::cli::{Cli, Commands, OutputFormat};
 use gh_monthly::error::AppError;
 use gh_monthly::export::{write_csv, write_jsonl, write_metadata, PreflightMetadata, RunMetadata};
-use gh_monthly::cli::ReportFormat;
 use gh_monthly::github::{ensure_preflight_budget, GitHubClient, SearchKind};
 use gh_monthly::model::NormalizedItem;
 use gh_monthly::report::{aggregate, read_jsonl, render_json, render_table};
@@ -111,23 +111,25 @@ async fn run(cli: Cli) -> Result<(), AppError> {
             for org in &args.orgs {
                 for kind in [SearchKind::Issue, SearchKind::PullRequest] {
                     let query = kind.build_query(org, &start, &end);
-                    let items = client.fetch_all(&query, kind, 100).await.map_err(|e| {
-                        let _ = write_metadata(
-                            &out_dir.join("metadata.json"),
-                            &RunMetadata {
-                                completed: false,
-                                month_id: window.month_id.clone(),
-                                orgs: args.orgs.clone(),
-                                preflight: PreflightMetadata {
-                                    estimated_requests: preflight_meta.estimated_requests,
-                                    rate_limit_remaining: preflight_meta.rate_limit_remaining,
-                                    rate_limit_reset_at: preflight_meta.rate_limit_reset_at,
+                    let items = client
+                        .fetch_all(&query, kind, 100)
+                        .await
+                        .inspect_err(|_| {
+                            let _ = write_metadata(
+                                &out_dir.join("metadata.json"),
+                                &RunMetadata {
+                                    completed: false,
+                                    month_id: window.month_id.clone(),
+                                    orgs: args.orgs.clone(),
+                                    preflight: PreflightMetadata {
+                                        estimated_requests: preflight_meta.estimated_requests,
+                                        rate_limit_remaining: preflight_meta.rate_limit_remaining,
+                                        rate_limit_reset_at: preflight_meta.rate_limit_reset_at,
+                                    },
+                                    total_items: all_items.len() as u64,
                                 },
-                                total_items: all_items.len() as u64,
-                            },
-                        );
-                        e
-                    })?;
+                            );
+                        })?;
                     all_items.extend(items);
                 }
             }

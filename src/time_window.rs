@@ -40,7 +40,7 @@ pub fn resolve_explicit_month(month_str: &str) -> Result<MonthWindow, AppError> 
         ))
     })?;
 
-    if month < 1 || month > 12 {
+    if !(1..=12).contains(&month) {
         return Err(AppError::Usage(format!(
             "invalid month '{}': month must be between 01 and 12",
             month_str

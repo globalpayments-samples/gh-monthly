@@ -41,9 +41,7 @@ async fn fetch_command_creates_output_files() {
     Mock::given(method("GET"))
         .and(path("/search/issues"))
         .and(query_param("per_page", "1"))
-        .respond_with(
-            rate_limit_headers().set_body_json(search_page(vec![], 2)),
-        )
+        .respond_with(rate_limit_headers().set_body_json(search_page(vec![], 2)))
         .expect(2) // one issue probe + one PR probe
         .mount(&server)
         .await;
@@ -53,10 +51,7 @@ async fn fetch_command_creates_output_files() {
         .and(path("/search/issues"))
         .and(query_param("page", "1"))
         .respond_with(
-            rate_limit_headers().set_body_json(search_page(
-                vec![issue_item(1), issue_item(2)],
-                2,
-            )),
+            rate_limit_headers().set_body_json(search_page(vec![issue_item(1), issue_item(2)], 2)),
         )
         .mount(&server)
         .await;

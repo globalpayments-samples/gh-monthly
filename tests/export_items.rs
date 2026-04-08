@@ -62,9 +62,18 @@ fn writes_csv_with_headers_and_records() {
 
     // Header row + 2 data rows
     assert!(lines.len() >= 3, "expected at least 3 lines");
-    assert!(lines[0].contains("number"), "header should contain 'number'");
-    assert!(lines[0].contains("item_type"), "header should contain 'item_type'");
-    assert!(lines[1].contains("rust-lang"), "first data row should contain org");
+    assert!(
+        lines[0].contains("number"),
+        "header should contain 'number'"
+    );
+    assert!(
+        lines[0].contains("item_type"),
+        "header should contain 'item_type'"
+    );
+    assert!(
+        lines[1].contains("rust-lang"),
+        "first data row should contain org"
+    );
 }
 
 #[test]

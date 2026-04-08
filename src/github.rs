@@ -32,11 +32,7 @@ pub fn build_pr_query(org: &str, start: &str, end: &str) -> String {
 }
 
 /// Build an issue search query string, returning an error for invalid inputs.
-pub fn build_issue_query_validated(
-    org: &str,
-    start: &str,
-    end: &str,
-) -> Result<String, AppError> {
+pub fn build_issue_query_validated(org: &str, start: &str, end: &str) -> Result<String, AppError> {
     if org.is_empty() {
         return Err(AppError::Usage("org name must not be empty".to_string()));
     }
@@ -228,9 +224,7 @@ impl GitHubClient {
 }
 
 /// Parse GitHub rate-limit headers from a response.
-pub fn parse_rate_limit_headers(
-    resp: &reqwest::Response,
-) -> Result<RateLimitSnapshot, AppError> {
+pub fn parse_rate_limit_headers(resp: &reqwest::Response) -> Result<RateLimitSnapshot, AppError> {
     let headers = resp.headers();
     let remaining = header_u32(headers, "x-ratelimit-remaining")?;
     let reset_at = header_u64(headers, "x-ratelimit-reset")?;
@@ -242,10 +236,7 @@ pub fn parse_rate_limit_headers(
     })
 }
 
-fn header_u32(
-    headers: &reqwest::header::HeaderMap,
-    name: &str,
-) -> Result<u32, AppError> {
+fn header_u32(headers: &reqwest::header::HeaderMap, name: &str) -> Result<u32, AppError> {
     headers
         .get(name)
         .ok_or_else(|| AppError::Fetch(format!("missing header: {name}")))?
@@ -255,10 +246,7 @@ fn header_u32(
         .map_err(|_| AppError::Fetch(format!("non-numeric header: {name}")))
 }
 
-fn header_u64(
-    headers: &reqwest::header::HeaderMap,
-    name: &str,
-) -> Result<u64, AppError> {
+fn header_u64(headers: &reqwest::header::HeaderMap, name: &str) -> Result<u64, AppError> {
     headers
         .get(name)
         .ok_or_else(|| AppError::Fetch(format!("missing header: {name}")))?

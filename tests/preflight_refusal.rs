@@ -46,5 +46,8 @@ fn error_message_includes_high_volume_drivers() {
     estimate.high_volume_drivers = vec!["rust-lang:issue".to_string()];
     let err = ensure_preflight_budget(&estimate, 2).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("rust-lang:issue"), "error should mention driver");
+    assert!(
+        msg.contains("rust-lang:issue"),
+        "error should mention driver"
+    );
 }

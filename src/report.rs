@@ -78,9 +78,8 @@ pub fn read_jsonl(path: &Path) -> Result<Vec<NormalizedItem>, AppError> {
         if line.trim().is_empty() {
             continue;
         }
-        let item: NormalizedItem = serde_json::from_str(&line).map_err(|e| {
-            AppError::ReportInput(format!("parse error at line {line_num}: {e}"))
-        })?;
+        let item: NormalizedItem = serde_json::from_str(&line)
+            .map_err(|e| AppError::ReportInput(format!("parse error at line {line_num}: {e}")))?;
         items.push(item);
     }
     Ok(items)

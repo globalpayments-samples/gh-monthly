@@ -1,7 +1,10 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Debug, Parser)]
-#[command(name = "gh-monthly", about = "Collect and report monthly GitHub activity")]
+#[command(
+    name = "gh-monthly",
+    about = "Collect and report monthly GitHub activity"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

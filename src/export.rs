@@ -30,8 +30,7 @@ pub fn write_metadata(path: &Path, metadata: &RunMetadata) -> Result<(), AppErro
     ensure_parent(path)?;
     let json = serde_json::to_string_pretty(metadata)
         .map_err(|e| AppError::Write(format!("metadata serialization failed: {e}")))?;
-    fs::write(path, json)
-        .map_err(|e| AppError::Write(format!("metadata write failed: {e}")))?;
+    fs::write(path, json).map_err(|e| AppError::Write(format!("metadata write failed: {e}")))?;
     Ok(())
 }
 
@@ -55,8 +54,7 @@ pub fn write_jsonl(path: &Path, items: &[NormalizedItem]) -> Result<(), AppError
     for item in items {
         let line = serde_json::to_string(item)
             .map_err(|e| AppError::Write(format!("serialization failed: {e}")))?;
-        writeln!(writer, "{line}")
-            .map_err(|e| AppError::Write(format!("write failed: {e}")))?;
+        writeln!(writer, "{line}").map_err(|e| AppError::Write(format!("write failed: {e}")))?;
     }
     writer
         .flush()
