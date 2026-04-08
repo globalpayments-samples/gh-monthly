@@ -102,23 +102,27 @@ pub fn write_csv(path: &Path, items: &[NormalizedItem]) -> Result<(), AppError> 
         let item_type = serde_json::to_value(&item.item_type)
             .map(|v| v.as_str().unwrap_or("").to_string())
             .unwrap_or_default();
+        let number = item.number.to_string();
+        let id = item.id.to_string();
+        let labels = item.labels.join(";");
+        let is_pr = if item.is_pull_request { "true" } else { "false" };
         wtr.write_record([
-            &item_type,
-            &item.org,
-            &item.repo,
-            &item.number.to_string(),
-            &item.id.to_string(),
-            &item.node_id,
-            &item.title,
+            item_type.as_str(),
+            item.org.as_str(),
+            item.repo.as_str(),
+            number.as_str(),
+            id.as_str(),
+            item.node_id.as_str(),
+            item.title.as_str(),
             item.author_login.as_deref().unwrap_or(""),
-            &item.state,
-            &item.created_at,
+            item.state.as_str(),
+            item.created_at.as_str(),
             item.closed_at.as_deref().unwrap_or(""),
             item.merged_at.as_deref().unwrap_or(""),
-            &item.html_url,
-            &item.api_url,
-            &item.labels.join(";"),
-            &(if item.is_pull_request { "true" } else { "false" }).to_string(),
+            item.html_url.as_str(),
+            item.api_url.as_str(),
+            labels.as_str(),
+            is_pr,
         ])
         .map_err(|e| AppError::Write(format!("csv record write failed: {e}")))?;
     }
