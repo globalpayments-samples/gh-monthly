@@ -1,3 +1,6 @@
+use reqwest::Client;
+use serde::Deserialize;
+
 use crate::error::AppError;
 
 /// The kind of GitHub search query to build.
@@ -71,4 +74,142 @@ pub struct PreflightEstimate {
     pub high_volume_drivers: Vec<String>,
     /// Rate-limit snapshot at preflight time.
     pub rate_limit: RateLimitSnapshot,
+}
+
+/// Minimal search response envelope used for probing total_count.
+#[derive(Debug, Deserialize)]
+struct SearchEnvelope {
+    total_count: u64,
+}
+
+/// GitHub Search API HTTP client.
+pub struct GitHubClient {
+    base_url: String,
+    client: Client,
+}
+
+const PER_PAGE: u64 = 100;
+const USER_AGENT: &str = concat!("gh-monthly/", env!("CARGO_PKG_VERSION"));
+
+impl GitHubClient {
+    pub fn new(base_url: impl Into<String>) -> Self {
+        let client = Client::builder()
+            .user_agent(USER_AGENT)
+            .build()
+            .expect("failed to build reqwest client");
+        Self {
+            base_url: base_url.into(),
+            client,
+        }
+    }
+
+    /// Send a probe request (`per_page=1`) and return `(total_count, rate_limit)`.
+    pub async fn probe(
+        &self,
+        query: &str,
+        _kind: SearchKind,
+    ) -> Result<(u64, RateLimitSnapshot), AppError> {
+        let url = format!("{}/search/issues", self.base_url);
+        let resp = self
+            .client
+            .get(&url)
+            .query(&[("q", query), ("per_page", "1")])
+            .send()
+            .await
+            .map_err(|e| AppError::Fetch(e.to_string()))?;
+
+        let rate_limit = parse_rate_limit_headers(&resp)?;
+
+        let envelope: SearchEnvelope = resp
+            .json()
+            .await
+            .map_err(|e| AppError::Fetch(e.to_string()))?;
+
+        Ok((envelope.total_count, rate_limit))
+    }
+
+    /// Run probes for all orgs × kinds and compute a `PreflightEstimate`.
+    pub async fn preflight_estimate(
+        &self,
+        orgs: &[String],
+        start: &str,
+        end: &str,
+        month_id: &str,
+    ) -> Result<PreflightEstimate, AppError> {
+        let mut total_requests: u32 = 0;
+        let mut last_rate_limit: Option<RateLimitSnapshot> = None;
+        let mut high_volume_drivers: Vec<String> = Vec::new();
+
+        for org in orgs {
+            for kind in [SearchKind::Issue, SearchKind::PullRequest] {
+                let query = kind.build_query(org, start, end);
+                let (total_count, rate_limit) = self.probe(&query, kind.clone()).await?;
+                let pages = total_count.div_ceil(PER_PAGE) as u32;
+                if pages > 1 {
+                    let label = format!(
+                        "{}:{}",
+                        org,
+                        match kind {
+                            SearchKind::Issue => "issue",
+                            SearchKind::PullRequest => "pr",
+                        }
+                    );
+                    high_volume_drivers.push(label);
+                }
+                total_requests += pages.max(1);
+                last_rate_limit = Some(rate_limit);
+            }
+        }
+
+        Ok(PreflightEstimate {
+            estimated_requests: total_requests,
+            month_id: month_id.to_string(),
+            orgs: orgs.to_vec(),
+            high_volume_drivers,
+            rate_limit: last_rate_limit
+                .ok_or_else(|| AppError::Fetch("no orgs provided".to_string()))?,
+        })
+    }
+}
+
+/// Parse GitHub rate-limit headers from a response.
+pub fn parse_rate_limit_headers(
+    resp: &reqwest::Response,
+) -> Result<RateLimitSnapshot, AppError> {
+    let headers = resp.headers();
+    let remaining = header_u32(headers, "x-ratelimit-remaining")?;
+    let reset_at = header_u64(headers, "x-ratelimit-reset")?;
+    let limit = header_u32(headers, "x-ratelimit-limit")?;
+    Ok(RateLimitSnapshot {
+        remaining,
+        reset_at,
+        limit,
+    })
+}
+
+fn header_u32(
+    headers: &reqwest::header::HeaderMap,
+    name: &str,
+) -> Result<u32, AppError> {
+    headers
+        .get(name)
+        .ok_or_else(|| AppError::Fetch(format!("missing header: {name}")))?
+        .to_str()
+        .map_err(|_| AppError::Fetch(format!("non-ascii header: {name}")))?
+        .parse()
+        .map_err(|_| AppError::Fetch(format!("non-numeric header: {name}")))
+}
+
+fn header_u64(
+    headers: &reqwest::header::HeaderMap,
+    name: &str,
+) -> Result<u64, AppError> {
+    headers
+        .get(name)
+        .ok_or_else(|| AppError::Fetch(format!("missing header: {name}")))?
+        .to_str()
+        .map_err(|_| AppError::Fetch(format!("non-ascii header: {name}")))?
+        .parse()
+        .map_err(|_| AppError::Fetch(format!("non-numeric header: {name}")))
+
 }
