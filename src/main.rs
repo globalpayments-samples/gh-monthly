@@ -10,7 +10,7 @@ use gh_monthly::model::NormalizedItem;
 use gh_monthly::report::{read_and_aggregate, render_json, render_table};
 use gh_monthly::time_window::{resolve_explicit_month, resolve_previous_month};
 
-const SAFETY_MARGIN: u32 = 5;
+const SAFETY_MARGIN: u32 = 10;
 const DEFAULT_BASE_URL: &str = "https://api.github.com";
 
 /// Format a Unix timestamp (seconds) as a UTC RFC3339 string.

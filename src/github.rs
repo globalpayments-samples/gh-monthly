@@ -23,7 +23,7 @@ impl SearchKind {
             .collect::<Vec<_>>()
             .join(" ");
         format!(
-            "org:{org} {kind_filter} created:{start}..{end} {excluded_authors}"
+            "org:\"{org}\" {kind_filter} created:{start}..{end} {excluded_authors}"
         )
     }
 }
@@ -103,7 +103,45 @@ pub struct GitHubClient {
 
 const PER_PAGE: u64 = 100;
 const USER_AGENT: &str = concat!("gh-monthly/", env!("CARGO_PKG_VERSION"));
-const EXCLUDED_AUTHOR_LOGINS: &[&str] = &["macroscope-cloud", "dependabot"];
+const EXCLUDED_AUTHOR_LOGINS: &[&str] = &[
+    "macroscope-cloud",
+    "dependabot[bot]",
+    "slogsdon",
+    "MonroeKA",
+    "theCreedo",
+    "RadoslavSheytanov",
+    "RadoslavSheytanovGP",
+];
+
+fn debug_http_enabled() -> bool {
+    matches!(
+        std::env::var("GH_MONTHLY_DEBUG_HTTP").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
+    )
+}
+
+fn log_http_debug(message: &str) {
+    if debug_http_enabled() {
+        eprintln!("[gh-monthly][http] {message}");
+    }
+}
+
+fn header_value(resp: &Response, name: &str) -> String {
+    resp.headers()
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("<missing>")
+        .to_string()
+}
+
+fn log_rate_limit_debug(resp: &Response) {
+    log_http_debug(&format!(
+        "rate_limit limit={} remaining={} reset={}",
+        header_value(resp, "x-ratelimit-limit"),
+        header_value(resp, "x-ratelimit-remaining"),
+        header_value(resp, "x-ratelimit-reset"),
+    ));
+}
 
 impl GitHubClient {
     pub fn new(base_url: impl Into<String>) -> Self {
@@ -131,6 +169,15 @@ impl GitHubClient {
             let req = builder
                 .try_clone()
                 .ok_or_else(|| AppError::Fetch("cannot clone request builder".to_string()))?;
+            let req_for_logging = builder
+                .try_clone()
+                .ok_or_else(|| AppError::Fetch("cannot clone request builder".to_string()))?;
+
+            let request = req_for_logging
+                .build()
+                .map_err(|e| AppError::Fetch(e.to_string()))?;
+            let request_url = request.url().to_string();
+            log_http_debug(&format!("request attempt={} {}", attempt + 1, request_url));
 
             let resp = req
                 .send()
@@ -138,6 +185,8 @@ impl GitHubClient {
                 .map_err(|e| AppError::Fetch(e.to_string()))?;
 
             let status = resp.status();
+            log_http_debug(&format!("response attempt={} status={}", attempt + 1, status));
+            log_rate_limit_debug(&resp);
 
             if status.is_success() {
                 return Ok(resp);
@@ -175,7 +224,7 @@ impl GitHubClient {
         Err(last_err.unwrap_or_else(|| AppError::Fetch("request failed".to_string())))
     }
 
-    /// Send a probe request (`per_page=1`) and return `(total_count, rate_limit)`.
+    /// Send a probe request (`per_page=20`) and return `(total_count, rate_limit)`.
     pub async fn probe(
         &self,
         query: &str,
@@ -185,15 +234,21 @@ impl GitHubClient {
         let builder = self
             .client
             .get(&url)
-            .query(&[("q", query), ("per_page", "1")]);
+            .query(&[
+                ("q", query), 
+                ("per_page", "20"),
+            ]);
 
         let resp = self.send_with_retries(builder).await?;
         let rate_limit = parse_rate_limit_headers(&resp)?;
-
-        let envelope: SearchEnvelope = resp
-            .json()
+        let body = resp
+            .text()
             .await
             .map_err(|e| AppError::Fetch(e.to_string()))?;
+        log_http_debug(&format!("probe body={body}"));
+
+        let envelope: SearchEnvelope =
+            serde_json::from_str(&body).map_err(|e| AppError::Fetch(e.to_string()))?;
 
         Ok((envelope.total_count, rate_limit))
     }
@@ -263,11 +318,14 @@ impl GitHubClient {
             ]);
 
             let resp = self.send_with_retries(builder).await?;
-
-            let search_page: SearchPage = resp
-                .json()
+            let body = resp
+                .text()
                 .await
                 .map_err(|e| AppError::Fetch(e.to_string()))?;
+            log_http_debug(&format!("fetch page={} body={body}", page));
+
+            let search_page: SearchPage =
+                serde_json::from_str(&body).map_err(|e| AppError::Fetch(e.to_string()))?;
 
             let fetched = search_page.items.len();
             for raw in search_page.items {
