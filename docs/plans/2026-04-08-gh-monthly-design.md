@@ -62,7 +62,7 @@ Recommended command surface:
 
 ```text
 gh-monthly fetch --org ORG... [--out DIR] [--format jsonl|csv|both] [--month YYYY-MM] [--base-url URL]
-gh-monthly report --input PATH [--format table|json]
+gh-monthly report --input PATH... [--format table|json]
 gh-monthly window [--month YYYY-MM]
 ```
 
@@ -88,6 +88,8 @@ Defaults:
 Responsibilities:
 
 - Read normalized local export data only
+- Accept one or more `--input` paths
+- Display the included month or months from sibling `metadata.json` files when present
 - Compute monthly aggregates
 - Print human-readable tables by default
 - Emit structured JSON when requested

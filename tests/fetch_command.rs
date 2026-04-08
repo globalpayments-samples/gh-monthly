@@ -39,10 +39,10 @@ fn rate_limit_headers() -> ResponseTemplate {
 async fn fetch_command_creates_output_files() {
     let server = MockServer::start().await;
 
-    // Probe requests (per_page=1) for issues and PRs
+    // Probe requests (per_page=20) for issues and PRs
     Mock::given(method("GET"))
         .and(path("/search/issues"))
-        .and(query_param("per_page", "1"))
+        .and(query_param("per_page", "20"))
         .respond_with(rate_limit_headers().set_body_json(search_page(vec![], 2)))
         .expect(2) // one issue probe + one PR probe
         .mount(&server)
@@ -137,7 +137,7 @@ async fn fetch_command_jsonl_exists_even_when_later_fetch_fails() {
     // Probe: succeed for both issue and PR probes
     Mock::given(method("GET"))
         .and(path("/search/issues"))
-        .and(query_param("per_page", "1"))
+        .and(query_param("per_page", "20"))
         .respond_with(rate_limit_headers().set_body_json(search_page(vec![], 1)))
         .expect(2)
         .mount(&server)

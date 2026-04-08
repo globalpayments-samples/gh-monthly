@@ -16,7 +16,7 @@ async fn preflight_probe_returns_estimate() {
 
     Mock::given(method("GET"))
         .and(path("/search/issues"))
-        .and(query_param("per_page", "1"))
+        .and(query_param("per_page", "20"))
         .respond_with(
             ResponseTemplate::new(200)
                 .append_header("x-ratelimit-remaining", "50")
@@ -46,7 +46,7 @@ async fn preflight_estimates_request_count() {
     // Issue probe: 87 results → ceil(87/100) = 1 page
     Mock::given(method("GET"))
         .and(path("/search/issues"))
-        .and(query_param("per_page", "1"))
+        .and(query_param("per_page", "20"))
         .respond_with(
             ResponseTemplate::new(200)
                 .append_header("x-ratelimit-remaining", "100")

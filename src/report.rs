@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -115,6 +116,35 @@ pub fn read_and_aggregate(path: &Path) -> Result<ReportSummary, AppError> {
     let items = read_jsonl(path)?;
     let target_month = read_target_month_from_metadata(path);
     Ok(aggregate_with_month(&items, &target_month))
+}
+
+/// Read normalized items from multiple JSONL files and aggregate them into a `ReportSummary`.
+///
+/// Uses a single shared month when all inputs agree, or a sorted comma-separated
+/// month list when multiple inputs contribute different known months.
+pub fn read_and_aggregate_many(paths: &[std::path::PathBuf]) -> Result<ReportSummary, AppError> {
+    let mut all_items = Vec::new();
+    let mut months = BTreeSet::new();
+
+    for path in paths {
+        all_items.extend(read_jsonl(path)?);
+
+        let month = read_target_month_from_metadata(path);
+        if month != "unknown" {
+            months.insert(month);
+        }
+    }
+
+    let target_month = match months.len() {
+        0 => "unknown".to_string(),
+        1 => months.into_iter().next().unwrap_or_else(|| "unknown".to_string()),
+        _ => months.into_iter().collect::<Vec<_>>().join(", "),
+    };
+
+    Ok(aggregate_with_month(
+        &all_items,
+        &target_month,
+    ))
 }
 
 /// Read normalized items from a JSONL file.

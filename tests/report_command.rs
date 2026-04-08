@@ -181,3 +181,92 @@ fn report_json_format_is_valid_json() {
         serde_json::from_str(&stdout).expect("output should be valid JSON");
     assert!(value["total_items"].is_number());
 }
+
+#[test]
+fn report_aggregates_multiple_inputs() {
+    let dir_a = tempdir().unwrap();
+    let dir_b = tempdir().unwrap();
+    let file_a = dir_a.path().join("items.jsonl");
+    let file_b = dir_b.path().join("items.jsonl");
+    let meta_a = dir_a.path().join("metadata.json");
+    let meta_b = dir_b.path().join("metadata.json");
+
+    write_fixture_jsonl(
+        &file_a,
+        &[
+            make_item(1, "rust", ItemType::Issue),
+            make_item(2, "cargo", ItemType::PullRequest),
+        ],
+    );
+    write_fixture_jsonl(&file_b, &[make_item(3, "rust", ItemType::Issue)]);
+    fs::write(
+        &meta_a,
+        serde_json::to_string_pretty(&make_metadata("2026-03")).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &meta_b,
+        serde_json::to_string_pretty(&make_metadata("2026-03")).unwrap(),
+    )
+    .unwrap();
+
+    let output = Command::cargo_bin("gh-monthly")
+        .unwrap()
+        .args([
+            "report",
+            "--input",
+            file_a.to_str().unwrap(),
+            "--input",
+            file_b.to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(value["target_month"], "2026-03");
+    assert_eq!(value["total_items"], 3);
+    assert_eq!(value["issue_count"], 2);
+    assert_eq!(value["pull_request_count"], 1);
+    assert_eq!(value["by_org"][0][0], "rust-lang");
+    assert_eq!(value["by_org"][0][1], 3);
+}
+
+#[test]
+fn report_shows_included_months_for_multiple_inputs() {
+    let dir_a = tempdir().unwrap();
+    let dir_b = tempdir().unwrap();
+    let file_a = dir_a.path().join("items.jsonl");
+    let file_b = dir_b.path().join("items.jsonl");
+    let meta_a = dir_a.path().join("metadata.json");
+    let meta_b = dir_b.path().join("metadata.json");
+
+    write_fixture_jsonl(&file_a, &[make_item(1, "rust", ItemType::Issue)]);
+    write_fixture_jsonl(&file_b, &[make_item(2, "cargo", ItemType::Issue)]);
+    fs::write(
+        &meta_a,
+        serde_json::to_string_pretty(&make_metadata("2026-02")).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        &meta_b,
+        serde_json::to_string_pretty(&make_metadata("2026-03")).unwrap(),
+    )
+    .unwrap();
+
+    Command::cargo_bin("gh-monthly")
+        .unwrap()
+        .args([
+            "report",
+            "--input",
+            file_a.to_str().unwrap(),
+            "--input",
+            file_b.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Month: 2026-02, 2026-03"));
+}

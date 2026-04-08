@@ -512,13 +512,13 @@ assert_eq!(value["pull_request_count"], 1);
 assert!(value["busiest_days"].is_array());
 ```
 
-**Step 2: Refactor report input to derive month from the export location or metadata**
+**Step 2: Refactor report input to derive month information from local metadata**
 
 Implement a small loader that reads:
 - `items.jsonl`
 - sibling `metadata.json` when present
 
-Prefer metadata for `target_month`; if it is missing, fall back to `"unknown"` without calling GitHub.
+Prefer metadata for `target_month`; for multiple inputs, show the sorted included months as a comma-separated list. If no month metadata is available, fall back to `"unknown"` without calling GitHub.
 
 **Step 3: Expand aggregation types**
 
@@ -583,6 +583,7 @@ Document:
 - canonical JSONL / CSV schema language
 - metadata trust fields
 - incomplete-run semantics
+- repeated `report --input` usage and included-month display
 - rate-limit refusal and retry behavior
 - report output including month / issue / PR totals
 

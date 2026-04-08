@@ -1,3 +1,5 @@
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use reqwest::{Client, RequestBuilder, Response};
 use serde::Deserialize;
 
@@ -406,4 +408,47 @@ pub fn ensure_preflight_budget(
          but only {available} remain in the current rate-limit window.{drivers}",
         estimate.month_id,
     )))
+}
+
+/// Return how long preflight should wait for the next rate-limit window, if needed.
+pub fn preflight_wait_duration(
+    estimate: &PreflightEstimate,
+    safety_margin: u32,
+    now_unix_secs: u64,
+) -> Option<Duration> {
+    let required = estimate.estimated_requests + safety_margin;
+    let available = estimate.rate_limit.remaining;
+
+    if required <= available {
+        return None;
+    }
+
+    let wait_secs = estimate.rate_limit.reset_at.saturating_sub(now_unix_secs);
+    if wait_secs == 0 {
+        None
+    } else {
+        Some(Duration::from_secs(wait_secs))
+    }
+}
+
+/// Wait for the next rate-limit window instead of failing preflight.
+pub async fn wait_for_preflight_budget(
+    estimate: &PreflightEstimate,
+    safety_margin: u32,
+) -> Result<(), AppError> {
+    let now_unix_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| AppError::Fetch(format!("system clock before unix epoch: {e}")))?
+        .as_secs();
+
+    if let Some(wait) = preflight_wait_duration(estimate, safety_margin, now_unix_secs) {
+        eprintln!(
+            "rate limit budget is short; waiting {}s for reset at {} before continuing",
+            wait.as_secs(),
+            estimate.rate_limit.reset_at
+        );
+        tokio::time::sleep(wait).await;
+    }
+
+    Ok(())
 }

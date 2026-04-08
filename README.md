@@ -64,11 +64,14 @@ Output files written to `--out` (default `./data/YYYY-MM/`):
 # Table summary (default)
 gh-monthly report --input ./data/2026-03/items.jsonl
 
+# Aggregate multiple exports
+gh-monthly report --input ./data/2026-02/items.jsonl --input ./data/2026-03/items.jsonl
+
 # JSON output
 gh-monthly report --input ./data/2026-03/items.jsonl --format json
 ```
 
-`report` reads only local files — it never calls GitHub. The `target_month` field is derived from a sibling `metadata.json` when present; otherwise it shows `"unknown"`.
+`report` reads only local files — it never calls GitHub. The `target_month` field is derived from sibling `metadata.json` files when present; when multiple inputs provide different months, the report shows the included months as a comma-separated list. If no month metadata is available, it shows `"unknown"`.
 
 Example table output:
 

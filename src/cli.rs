@@ -45,9 +45,9 @@ pub struct FetchArgs {
 
 #[derive(Debug, Parser)]
 pub struct ReportArgs {
-    /// Path to items.jsonl export file
-    #[arg(long)]
-    pub input: std::path::PathBuf,
+    /// Path(s) to items.jsonl export file(s)
+    #[arg(long, required = true)]
+    pub input: Vec<std::path::PathBuf>,
 
     /// Output format
     #[arg(long, default_value = "table")]

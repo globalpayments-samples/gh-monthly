@@ -77,6 +77,15 @@ fn report_with_valid_existing_input_succeeds() {
 }
 
 #[test]
+fn report_without_input_fails() {
+    Command::cargo_bin("gh-monthly")
+        .unwrap()
+        .args(["report"])
+        .assert()
+        .failure();
+}
+
+#[test]
 fn report_with_malformed_metadata_falls_back_to_unknown_month() {
     let dir = tempdir().unwrap();
     let file = dir.path().join("items.jsonl");

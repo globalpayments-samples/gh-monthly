@@ -5,9 +5,9 @@ use gh_monthly::cli::ReportFormat;
 use gh_monthly::cli::{Cli, Commands, OutputFormat};
 use gh_monthly::error::AppError;
 use gh_monthly::export::{write_csv, write_jsonl, write_metadata, PreflightMetadata, RunMetadata};
-use gh_monthly::github::{ensure_preflight_budget, GitHubClient, SearchKind};
+use gh_monthly::github::{wait_for_preflight_budget, GitHubClient, SearchKind};
 use gh_monthly::model::NormalizedItem;
-use gh_monthly::report::{read_and_aggregate, render_json, render_table};
+use gh_monthly::report::{read_and_aggregate, read_and_aggregate_many, render_json, render_table};
 use gh_monthly::time_window::{resolve_explicit_month, resolve_previous_month};
 
 const SAFETY_MARGIN: u32 = 10;
@@ -169,7 +169,7 @@ async fn run(cli: Cli) -> Result<(), AppError> {
                 &build_incomplete_metadata(&ctx, Some(&preflight_meta), 0),
             );
 
-            ensure_preflight_budget(&estimate, SAFETY_MARGIN)?;
+            wait_for_preflight_budget(&estimate, SAFETY_MARGIN).await?;
 
             // --- Fetch ---
             let mut all_items: Vec<NormalizedItem> = Vec::new();
@@ -231,7 +231,11 @@ async fn run(cli: Cli) -> Result<(), AppError> {
         }
 
         Commands::Report(args) => {
-            let summary = read_and_aggregate(&args.input)?;
+            let summary = if args.input.len() == 1 {
+                read_and_aggregate(&args.input[0])?
+            } else {
+                read_and_aggregate_many(&args.input)?
+            };
             match args.format {
                 ReportFormat::Json => {
                     println!("{}", render_json(summary)?);

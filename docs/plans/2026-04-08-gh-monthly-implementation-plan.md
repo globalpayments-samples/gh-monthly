@@ -740,10 +740,10 @@ git commit -m "feat: add report aggregation"
 Create a test that:
 
 - writes a small `items.jsonl` fixture
-- runs `report --input <file>`
+- runs `report --input <file>` and later extends to repeated `--input` values
 - asserts the output contains total items and at least one top repo line
 
-Add a second test for `--format json`.
+Add a second test for `--format json`, then extend coverage for repeated `--input` usage and month display across multiple inputs.
 
 **Step 2: Run the tests to verify failure**
 
