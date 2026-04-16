@@ -4,7 +4,7 @@ use clap::Parser;
 use gh_monthly::cli::ReportFormat;
 use gh_monthly::cli::{Cli, Commands, OutputFormat};
 use gh_monthly::error::AppError;
-use gh_monthly::export::{write_csv, write_jsonl, write_metadata, PreflightMetadata, RunMetadata};
+use gh_monthly::export::{write_csv, write_json_array, write_jsonl, write_metadata, PreflightMetadata, RunMetadata};
 use gh_monthly::github::{wait_for_preflight_budget, GitHubClient, SearchKind};
 use gh_monthly::model::NormalizedItem;
 use gh_monthly::report::{read_and_aggregate, read_and_aggregate_many, render_json, render_table};
@@ -124,6 +124,7 @@ async fn run(cli: Cli) -> Result<(), AppError> {
             let formats = match args.format {
                 OutputFormat::Jsonl => vec!["jsonl".to_string()],
                 OutputFormat::Csv => vec!["csv".to_string()],
+                OutputFormat::JsonArray => vec!["json-array".to_string()],
                 OutputFormat::Both => vec!["jsonl".to_string(), "csv".to_string()],
             };
 
@@ -201,6 +202,9 @@ async fn run(cli: Cli) -> Result<(), AppError> {
             match args.format {
                 OutputFormat::Csv => {
                     write_csv(&out_dir.join("items.csv"), &all_items)?;
+                }
+                OutputFormat::JsonArray => {
+                    write_json_array(&out_dir.join("items.json"), &all_items)?;
                 }
                 OutputFormat::Both => {
                     write_csv(&out_dir.join("items.csv"), &all_items)?;

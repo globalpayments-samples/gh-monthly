@@ -31,7 +31,7 @@ pub struct FetchArgs {
     pub out: Option<std::path::PathBuf>,
 
     /// Export format
-    #[arg(long, default_value = "jsonl")]
+    #[arg(long, default_value = "json-array")]
     pub format: OutputFormat,
 
     /// Target month in YYYY-MM format (default: previous calendar month)
@@ -65,6 +65,7 @@ pub struct WindowArgs {
 pub enum OutputFormat {
     Jsonl,
     Csv,
+    JsonArray,
     Both,
 }
 
