@@ -54,10 +54,11 @@ fn ensure_parent(path: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Write normalized items as a JSON array.
+/// Write normalized items as a JSON object with a `data` array.
 pub fn write_json_array(path: &Path, items: &[NormalizedItem]) -> Result<(), AppError> {
     ensure_parent(path)?;
-    let json = serde_json::to_string(items)
+    let wrapper = serde_json::json!({ "data": items });
+    let json = serde_json::to_string(&wrapper)
         .map_err(|e| AppError::Write(format!("json array serialization failed: {e}")))?;
     fs::write(path, json)
         .map_err(|e| AppError::Write(format!("json array write failed: {e}")))?;
