@@ -123,8 +123,8 @@ async fn run(cli: Cli) -> Result<(), AppError> {
 
             let formats = match args.format {
                 OutputFormat::Jsonl => vec!["jsonl".to_string()],
-                OutputFormat::Csv => vec!["csv".to_string()],
-                OutputFormat::JsonArray => vec!["json-array".to_string()],
+                OutputFormat::Csv => vec!["jsonl".to_string(), "csv".to_string()],
+                OutputFormat::JsonArray => vec!["jsonl".to_string(), "json-array".to_string()],
                 OutputFormat::Both => vec!["jsonl".to_string(), "csv".to_string()],
             };
 

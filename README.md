@@ -10,7 +10,7 @@ A Rust CLI that fetches public GitHub issues and pull requests created in the pr
 
 **Included:**
 - Fetch public issues and PRs for one or more GitHub orgs via the Search API
-- Export to JSONL (canonical) or CSV with a stable, versioned schema
+- Export to JSON array (default), JSONL, or CSV with a stable, versioned schema
 - Summarize exported data locally: totals by type, top repos, top authors, top labels, busiest days
 - Preflight budget check to refuse runs that would exceed rate limits
 - Automatic retry on transient 5xx server errors (fail-fast on 4xx)
@@ -38,13 +38,16 @@ gh-monthly window
 ### Fetch issues and PRs
 
 ```sh
-# Fetch previous month for one org
+# Fetch previous month for one org (default format: json-array)
 gh-monthly fetch --org rust-lang
 
 # Fetch a specific month for multiple orgs
 gh-monthly fetch --org rust-lang --org tokio-rs --month 2026-03
 
-# Choose output directory and format
+# Explicit JSON array output (e.g. for Power Automate or other HTTP consumers)
+gh-monthly fetch --org rust-lang --month 2026-03 --out ./exports/2026-03 --format json-array
+
+# JSONL + CSV together
 gh-monthly fetch --org rust-lang --month 2026-03 --out ./exports/2026-03 --format both
 ```
 
@@ -52,9 +55,21 @@ Output files written to `--out` (default `./data/YYYY-MM/`):
 
 | File | Description |
 |------|-------------|
-| `items.jsonl` | One normalized item per line (canonical export) |
+| `items.jsonl` | One normalized item per line; always written regardless of `--format` |
+| `items.json` | JSON array export for HTTP consumers (with `--format json-array`, the default) |
 | `items.csv` | Tabular export (with `--format csv` or `--format both`) |
 | `metadata.json` | Run metadata including preflight info and completion status |
+
+### Export formats
+
+| `--format` | Files written | Use when |
+|------------|---------------|----------|
+| `json-array` (default) | `items.jsonl` + `items.json` | Feeding a downstream HTTP endpoint (Power Automate, webhooks, etc.) |
+| `jsonl` | `items.jsonl` | Streaming pipelines, log aggregators, `jq` processing |
+| `csv` | `items.jsonl` + `items.csv` | Spreadsheet import, SQL `COPY`, pandas |
+| `both` | `items.jsonl` + `items.csv` | Same as `csv` |
+
+`items.jsonl` is always written. It is the canonical export and the source of truth for `report`.
 
 > **Rate limits:** V1 is unauthenticated. The GitHub Search API allows ~30 requests per minute for unauthenticated clients. The preflight check refuses runs that would exhaust the current window. Transient 5xx errors are retried automatically; 4xx errors fail immediately.
 
@@ -103,9 +118,11 @@ Busiest days:
   2026-03-22: 11
 ```
 
-## Canonical JSONL / CSV Schema
+## Export Schema
 
-Each exported item has the following fields (stable in v1):
+All three export formats share the same fields (stable in v1). JSONL writes one object per line; JSON array wraps the same objects in `{"data": [...]}`. CSV uses the same field names as column headers with `;`-separated labels.
+
+Each item has the following fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -127,6 +144,21 @@ Each exported item has the following fields (stable in v1):
 | `is_pull_request` | boolean | `true` for PRs |
 
 CSV column order matches the table above exactly.
+
+### JSON array structure
+
+`items.json` (written with `--format json-array`) wraps the items array in a single object, which most HTTP connectors (Power Automate, Logic Apps, webhook consumers) expect as a parseable root:
+
+```json
+{
+  "data": [
+    { "item_type": "issue", "org": "rust-lang", "repo": "rust", ... },
+    { "item_type": "pull_request", "org": "rust-lang", "repo": "rust", ... }
+  ]
+}
+```
+
+Each element in `data` has the same fields as a JSONL record.
 
 ## Metadata Trust Fields
 
