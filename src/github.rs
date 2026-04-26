@@ -298,6 +298,61 @@ impl GitHubClient {
         })
     }
 
+    /// Fetch all pages and call `on_item` for each normalized item as it arrives.
+    ///
+    /// Returns the total number of API page requests made.
+    /// Transient 5xx errors are retried up to `MAX_RETRIES` times per page.
+    pub async fn fetch_all_into<F>(
+        &self,
+        query: &str,
+        _kind: SearchKind,
+        per_page: u32,
+        mut on_item: F,
+    ) -> Result<u32, AppError>
+    where
+        F: FnMut(NormalizedItem) -> Result<(), AppError>,
+    {
+        let url = format!("{}/search/issues", self.base_url);
+        let mut items_seen: usize = 0;
+        let mut request_count: u32 = 0;
+        let mut page: u32 = 1;
+
+        loop {
+            let builder = self.client.get(&url).query(&[
+                ("q", query.to_string()),
+                ("per_page", per_page.to_string()),
+                ("page", page.to_string()),
+            ]);
+
+            let resp = self.send_with_retries(builder).await?;
+            let body = resp
+                .text()
+                .await
+                .map_err(|e| AppError::Fetch(e.to_string()))?;
+            log_http_debug(&format!("fetch_all_into page={page} body={body}"));
+            request_count += 1;
+
+            let search_page: SearchPage =
+                serde_json::from_str(&body).map_err(|e| AppError::Fetch(e.to_string()))?;
+
+            let fetched = search_page.items.len();
+            let total_count = search_page.total_count as usize;
+
+            for raw in search_page.items {
+                let item = NormalizedItem::try_from(raw)?;
+                on_item(item)?;
+                items_seen += 1;
+            }
+
+            if items_seen >= total_count || fetched == 0 {
+                break;
+            }
+            page += 1;
+        }
+
+        Ok(request_count)
+    }
+
     /// Fetch all pages for a search query, returning normalized items in order.
     ///
     /// `per_page` is configurable so tests can use small pages.

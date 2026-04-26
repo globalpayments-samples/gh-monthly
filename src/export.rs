@@ -65,6 +65,109 @@ pub fn write_json_array(path: &Path, items: &[NormalizedItem]) -> Result<(), App
     Ok(())
 }
 
+/// Streaming JSONL writer — opens the file on creation, appends one item per call.
+pub struct JsonlItemWriter {
+    writer: BufWriter<File>,
+}
+
+impl JsonlItemWriter {
+    pub fn create(path: &Path) -> Result<Self, AppError> {
+        ensure_parent(path)?;
+        let file = File::create(path)
+            .map_err(|e| AppError::Write(format!("cannot create file: {e}")))?;
+        Ok(Self {
+            writer: BufWriter::new(file),
+        })
+    }
+
+    pub fn write_item(&mut self, item: &NormalizedItem) -> Result<(), AppError> {
+        let line = serde_json::to_string(item)
+            .map_err(|e| AppError::Write(format!("serialization failed: {e}")))?;
+        writeln!(self.writer, "{line}")
+            .map_err(|e| AppError::Write(format!("write failed: {e}")))?;
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> Result<(), AppError> {
+        self.writer
+            .flush()
+            .map_err(|e| AppError::Write(format!("flush failed: {e}")))?;
+        Ok(())
+    }
+}
+
+/// Streaming CSV writer — writes the stable header row on creation, then one row per item.
+pub struct CsvItemWriter {
+    writer: csv::Writer<File>,
+}
+
+impl CsvItemWriter {
+    pub fn create(path: &Path) -> Result<Self, AppError> {
+        ensure_parent(path)?;
+        let file = File::create(path)
+            .map_err(|e| AppError::Write(format!("cannot create file: {e}")))?;
+        let mut wtr = csv::Writer::from_writer(file);
+        wtr.write_record([
+            "item_type",
+            "org",
+            "repo",
+            "number",
+            "id",
+            "node_id",
+            "title",
+            "author_login",
+            "state",
+            "created_at",
+            "closed_at",
+            "merged_at",
+            "html_url",
+            "api_url",
+            "labels",
+            "is_pull_request",
+        ])
+        .map_err(|e| AppError::Write(format!("csv header write failed: {e}")))?;
+        Ok(Self { writer: wtr })
+    }
+
+    pub fn write_item(&mut self, item: &NormalizedItem) -> Result<(), AppError> {
+        let item_type = serde_json::to_value(&item.item_type)
+            .map(|v| v.as_str().unwrap_or("").to_string())
+            .unwrap_or_default();
+        let number = item.number.to_string();
+        let id = item.id.to_string();
+        let labels = item.labels.join(";");
+        let is_pr = if item.is_pull_request { "true" } else { "false" };
+        self.writer
+            .write_record([
+                item_type.as_str(),
+                &item.org,
+                &item.repo,
+                &number,
+                &id,
+                &item.node_id,
+                &item.title,
+                item.author_login.as_deref().unwrap_or(""),
+                &item.state,
+                &item.created_at,
+                item.closed_at.as_deref().unwrap_or(""),
+                item.merged_at.as_deref().unwrap_or(""),
+                &item.html_url,
+                &item.api_url,
+                &labels,
+                is_pr,
+            ])
+            .map_err(|e| AppError::Write(format!("csv record write failed: {e}")))?;
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> Result<(), AppError> {
+        self.writer
+            .flush()
+            .map_err(|e| AppError::Write(format!("csv flush failed: {e}")))?;
+        Ok(())
+    }
+}
+
 /// Write normalized items to a JSONL file (one JSON object per line).
 pub fn write_jsonl(path: &Path, items: &[NormalizedItem]) -> Result<(), AppError> {
     ensure_parent(path)?;

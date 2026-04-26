@@ -4,7 +4,7 @@ use clap::Parser;
 use gh_monthly::cli::ReportFormat;
 use gh_monthly::cli::{Cli, Commands, OutputFormat};
 use gh_monthly::error::AppError;
-use gh_monthly::export::{write_csv, write_json_array, write_jsonl, write_metadata, PreflightMetadata, RunMetadata};
+use gh_monthly::export::{write_json_array, write_metadata, CsvItemWriter, JsonlItemWriter, PreflightMetadata, RunMetadata};
 use gh_monthly::github::{wait_for_preflight_budget, GitHubClient, SearchKind};
 use gh_monthly::model::NormalizedItem;
 use gh_monthly::report::{read_and_aggregate, read_and_aggregate_many, render_json, render_table};
@@ -172,44 +172,65 @@ async fn run(cli: Cli) -> Result<(), AppError> {
 
             wait_for_preflight_budget(&estimate, SAFETY_MARGIN).await?;
 
-            // --- Fetch ---
-            let mut all_items: Vec<NormalizedItem> = Vec::new();
+            // --- Fetch + Export (streaming) ---
+            let mut jsonl_writer = JsonlItemWriter::create(&out_dir.join("items.jsonl"))?;
+            let mut csv_writer: Option<CsvItemWriter> = match args.format {
+                OutputFormat::Csv | OutputFormat::Both => {
+                    Some(CsvItemWriter::create(&out_dir.join("items.csv"))?)
+                }
+                _ => None,
+            };
+            let mut json_array_buf: Option<Vec<NormalizedItem>> = match args.format {
+                OutputFormat::JsonArray => Some(Vec::new()),
+                _ => None,
+            };
+
+            let mut total_records: u64 = 0;
             let mut total_requests: u32 = 0;
 
             for org in &args.orgs {
                 for kind in [SearchKind::Issue, SearchKind::PullRequest] {
                     let query = kind.build_query(org, &start, &end);
-                    let items = client.fetch_all(&query, kind, 100).await.inspect_err(|_| {
-                        let _ = write_metadata(
-                            &out_dir.join("metadata.json"),
-                            &build_incomplete_metadata(
-                                &ctx,
-                                Some(&preflight_meta),
-                                all_items.len() as u64,
-                            ),
-                        );
-                    })?;
-                    // Each fetch_all call uses approximately one request per page; we track
-                    // a coarse count here until per-request instrumentation is added.
-                    total_requests += 1;
-                    all_items.extend(items);
+                    let result = client
+                        .fetch_all_into(&query, kind, 100, |item| {
+                            jsonl_writer.write_item(&item)?;
+                            if let Some(ref mut cw) = csv_writer {
+                                cw.write_item(&item)?;
+                            }
+                            if let Some(ref mut buf) = json_array_buf {
+                                buf.push(item);
+                            }
+                            total_records += 1;
+                            Ok(())
+                        })
+                        .await;
+                    match result {
+                        Ok(req_count) => total_requests += req_count,
+                        Err(err) => {
+                            let _ = jsonl_writer.flush();
+                            if let Some(ref mut cw) = csv_writer {
+                                let _ = cw.flush();
+                            }
+                            let _ = write_metadata(
+                                &out_dir.join("metadata.json"),
+                                &build_incomplete_metadata(
+                                    &ctx,
+                                    Some(&preflight_meta),
+                                    total_records,
+                                ),
+                            );
+                            return Err(err);
+                        }
+                    }
                 }
             }
 
-            // --- Export ---
-            write_jsonl(&out_dir.join("items.jsonl"), &all_items)?;
-
-            match args.format {
-                OutputFormat::Csv => {
-                    write_csv(&out_dir.join("items.csv"), &all_items)?;
-                }
-                OutputFormat::JsonArray => {
-                    write_json_array(&out_dir.join("items.json"), &all_items)?;
-                }
-                OutputFormat::Both => {
-                    write_csv(&out_dir.join("items.csv"), &all_items)?;
-                }
-                OutputFormat::Jsonl => {}
+            jsonl_writer.flush()?;
+            if let Some(ref mut cw) = csv_writer {
+                cw.flush()?;
+            }
+            if let Some(ref buf) = json_array_buf {
+                write_json_array(&out_dir.join("items.json"), buf)?;
             }
 
             let run_completed_at = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
@@ -220,14 +241,14 @@ async fn run(cli: Cli) -> Result<(), AppError> {
                     &ctx,
                     &run_completed_at,
                     preflight_meta,
-                    all_items.len() as u64,
+                    total_records,
                     total_requests,
                 ),
             )?;
 
             println!(
                 "fetched {} items for {} → {}",
-                all_items.len(),
+                total_records,
                 window.month_id,
                 out_dir.display()
             );

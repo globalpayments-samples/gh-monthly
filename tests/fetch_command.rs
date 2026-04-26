@@ -185,4 +185,12 @@ async fn fetch_command_jsonl_exists_even_when_later_fetch_fails() {
     let content = std::fs::read_to_string(dir.path().join("metadata.json")).unwrap();
     let value: serde_json::Value = serde_json::from_str(&content).unwrap();
     assert_eq!(value["completed"], false);
+
+    // items.jsonl should exist with the one issue item that was written before the PR fetch failed
+    assert!(
+        dir.path().join("items.jsonl").exists(),
+        "items.jsonl should exist even on partial failure"
+    );
+    let jsonl = std::fs::read_to_string(dir.path().join("items.jsonl")).unwrap();
+    assert_eq!(jsonl.lines().count(), 1, "one issue item should have been written before failure");
 }

@@ -1,4 +1,4 @@
-use gh_monthly::export::{write_csv, write_jsonl};
+use gh_monthly::export::{write_csv, write_jsonl, CsvItemWriter, JsonlItemWriter};
 use gh_monthly::model::{ItemType, NormalizedItem};
 use std::fs;
 use tempfile::tempdir;
@@ -111,6 +111,47 @@ fn csv_has_canonical_header_order() {
     assert!(content.contains(
         "item_type,org,repo,number,id,node_id,title,author_login,state,created_at,closed_at,merged_at,html_url,api_url,labels,is_pull_request"
     ));
+}
+
+#[test]
+fn jsonl_item_writer_streams_items() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("items.jsonl");
+
+    let mut writer = JsonlItemWriter::create(&path).expect("create should succeed");
+    writer.write_item(&make_item(1, ItemType::Issue)).expect("write 1");
+    writer.write_item(&make_item(2, ItemType::PullRequest)).expect("write 2");
+    writer.flush().expect("flush should succeed");
+
+    let content = fs::read_to_string(&path).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert_eq!(lines.len(), 2);
+
+    let first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+    assert_eq!(first["number"], 1);
+    assert_eq!(first["item_type"], "issue");
+
+    let second: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+    assert_eq!(second["number"], 2);
+    assert_eq!(second["item_type"], "pull_request");
+}
+
+#[test]
+fn csv_item_writer_streams_items() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("items.csv");
+
+    let mut writer = CsvItemWriter::create(&path).expect("create should succeed");
+    writer.write_item(&make_item(1, ItemType::Issue)).expect("write 1");
+    writer.write_item(&make_item(2, ItemType::PullRequest)).expect("write 2");
+    writer.flush().expect("flush should succeed");
+
+    let content = fs::read_to_string(&path).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert!(lines.len() >= 3, "expected header + 2 data rows");
+    assert!(lines[0].contains("item_type,org,repo"));
+    assert!(lines[1].contains("issue"));
+    assert!(lines[2].contains("pull_request"));
 }
 
 #[test]

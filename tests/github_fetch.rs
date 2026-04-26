@@ -158,6 +158,74 @@ async fn fetch_all_fails_after_retry_exhaustion() {
 }
 
 #[tokio::test]
+async fn fetch_all_into_calls_callback_per_item_and_returns_request_count() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .and(query_param("page", "1"))
+        .respond_with(rate_headers(50).set_body_json(search_page(
+            vec![make_item(1, "issue"), make_item(2, "issue")],
+            2,
+        )))
+        .mount(&server)
+        .await;
+
+    let client = GitHubClient::new(server.uri());
+    let query = "org:rust-lang is:issue created:2026-03-01T00:00:00Z..2026-04-01T00:00:00Z";
+
+    let mut collected = Vec::new();
+    let req_count = client
+        .fetch_all_into(query, SearchKind::Issue, 100, |item| {
+            collected.push(item);
+            Ok(())
+        })
+        .await
+        .expect("fetch should succeed");
+
+    assert_eq!(collected.len(), 2);
+    assert_eq!(collected[0].number, 1);
+    assert_eq!(req_count, 1);
+}
+
+#[tokio::test]
+async fn fetch_all_into_paginates_correctly() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .and(query_param("page", "1"))
+        .respond_with(rate_headers(50).set_body_json(search_page(
+            vec![make_item(1, "issue"), make_item(2, "issue")],
+            3,
+        )))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .and(query_param("page", "2"))
+        .respond_with(rate_headers(49).set_body_json(search_page(vec![make_item(3, "issue")], 3)))
+        .mount(&server)
+        .await;
+
+    let client = GitHubClient::new(server.uri());
+    let query = "org:rust-lang is:issue created:2026-03-01T00:00:00Z..2026-04-01T00:00:00Z";
+
+    let mut numbers = Vec::new();
+    let req_count = client
+        .fetch_all_into(query, SearchKind::Issue, 2, |item| {
+            numbers.push(item.number);
+            Ok(())
+        })
+        .await
+        .expect("fetch should succeed");
+
+    assert_eq!(numbers, vec![1, 2, 3]);
+    assert_eq!(req_count, 2);
+}
+
+#[tokio::test]
 async fn fetch_all_fails_fast_on_4xx() {
     let server = MockServer::start().await;
 
